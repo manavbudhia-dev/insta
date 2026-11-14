@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>DM Autopilot</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div id="login" class="login" hidden>
+    <form id="login-form" class="card login-card">
+      <h1>DM Autopilot</h1>
+      <p class="muted">Sign in to manage your Instagram automation.</p>
+      <label>Password
+        <input type="password" name="password" autocomplete="current-password" required autofocus>
+      </label>
+      <p class="error" id="login-error" hidden></p>
+      <button class="btn primary" type="submit">Sign in</button>
+    </form>
+  </div>
+
+  <div id="app" class="shell" hidden>
+    <aside class="side">
+      <div class="brand">DM Autopilot</div>
+      <nav id="nav">
+        <a href="#overview" data-view="overview">Overview</a>
+        <a href="#rules" data-view="rules">Automations</a>
+        <a href="#inbox" data-view="inbox">Inbox</a>
+        <a href="#posts" data-view="posts">Scheduler</a>
+        <a href="#activity" data-view="activity">Activity</a>
+        <a href="#settings" data-view="settings">Settings</a>
+      </nav>
+      <div class="side-foot">
+        <div id="side-account" class="muted small"></div>
+        <button class="btn ghost small" id="logout">Sign out</button>
+      </div>
+    </aside>
+    <main id="main"></main>
+  </div>
+
+  <div id="modal" class="modal" hidden><div class="modal-box card" id="modal-box"></div></div>
+  <div id="toast" class="toast" hidden></div>
+  <script src="/app.js"></script>
+</body>
+</html>

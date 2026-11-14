@@ -1,7 +1,7 @@
 # DM Autopilot
 
 A self-hosted Instagram DM automation and post scheduler for **your own** Instagram professional account.
-It uses only the official Instagram API (Instagram Login), so it follows Meta's messaging rules by design.
+It uses only the official Instagram API with Unified Login (Meta's current setup), so it follows Meta's messaging rules by design.
 
 ## What it does
 
@@ -53,18 +53,32 @@ sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
 sudo netfilter-persistent save
 ```
 
-### 3. Create the Meta app
+### 3. Create the Meta app (Instagram API with Unified Login)
 
+Meta's current setup is **Unified Login**; newly created apps can no longer use the older "Instagram Login".
 Menu names in the Meta dashboard change from time to time; the items to find are the same.
 
-1. Go to <https://developers.facebook.com/apps> → **Create app** → choose the Instagram use case (manage messaging and content) / app type **Business**.
-2. In the app, open **Instagram → API setup with Instagram login**.
-3. Copy the **Instagram app ID** and **Instagram app secret** – these go in `.env`.
-4. Under **App roles → Roles**, add your Instagram account as an **Instagram Tester**, then accept the invite in Instagram
-   (Settings → Apps and websites → Tester invites).
-5. **Business login settings:** add the OAuth redirect URI
-   `https://insta.zealcoder.in/auth/instagram/callback`
-6. **App settings → Basic:** set the Privacy Policy URL to `https://insta.zealcoder.in/privacy`.
+Before you start, you need:
+
+- A **business portfolio** at <https://business.facebook.com> (free). The app must be owned by one, and your
+  Instagram professional account must belong to one. Without it the *API setup with Unified login* tab does not appear.
+- Your Instagram account switched to **Business** or **Creator**.
+
+Then:
+
+1. Go to <https://developers.facebook.com/apps> → **Create app** → use case **Manage messaging & content on Instagram**,
+   and attach it to your business portfolio.
+2. Open **Use cases → Manage messaging & content on Instagram → Customize → API setup with Unified login**.
+3. **Configure your app → Create new configuration.** Keep these permissions: `instagram_basic`,
+   `instagram_manage_messages`, `instagram_manage_comments`, `instagram_content_publish`
+   (you can remove the two ads permissions). Choose a token that **never expires** if offered.
+   Select **Use this configuration**.
+4. Under **Redirect URL** enter `https://insta.zealcoder.in/auth/instagram/callback` and save.
+5. Copy the **configuration ID** (the `config_id` value inside the Login URL) → `META_CONFIG_ID` in `.env`.
+6. **App settings → Basic:** copy **App ID** and **App secret** → `META_APP_ID` and `META_APP_SECRET`.
+   Set the Privacy Policy URL to `https://insta.zealcoder.in/privacy`.
+7. **Generate access tokens → Add account:** invite your Instagram account as an **Instagram Tester**, then accept in
+   Instagram on the web (Settings → Website permissions → Apps and websites → Tester Invites).
 
 Leave the webhook step until the app is running (step 5 below), because Meta checks the URL immediately.
 
@@ -76,7 +90,7 @@ Copy this folder to the server, then:
 cp .env.example .env
 ```
 
-Edit `.env`: set `ADMIN_PASSWORD`, `IG_APP_ID`, `IG_APP_SECRET`, and two random strings for
+Edit `.env`: set `ADMIN_PASSWORD`, `META_APP_ID`, `META_APP_SECRET`, `META_CONFIG_ID`, and two random strings for
 `SESSION_SECRET` and `WEBHOOK_VERIFY_TOKEN` (generate each one with):
 
 ```bash
@@ -93,13 +107,17 @@ Caddy fetches the HTTPS certificate automatically. Open <https://insta.zealcoder
 
 ### 5. Connect webhooks and your account
 
-1. Meta dashboard → **Instagram → API setup with Instagram login → Configure webhooks**:
+1. Meta dashboard → **API setup with Unified login → Configure webhooks** (this is the **Instagram** object under
+   your Meta app's Webhooks):
    - Callback URL: `https://insta.zealcoder.in/webhook`
    - Verify token: the `WEBHOOK_VERIFY_TOKEN` value from `.env`
    - Subscribe to **messages**, **messaging_postbacks** and **comments**.
 2. Switch the app to **Live** mode (top of the Meta dashboard). Webhooks are not delivered in Development mode.
-3. In the DM Autopilot dashboard, click **Connect with Instagram** and approve all permissions.
-4. In the Instagram app: **Settings → Messages and story replies → Message controls → Connected tools → Allow access to messages** must be **on**.
+3. In the DM Autopilot dashboard, click **Connect Instagram account**. Sign in with Instagram or Facebook, choose your
+   business portfolio, tick your Instagram account, and approve the permissions.
+   (Alternative: paste the token from *Generate access tokens* into the dashboard.)
+4. If you signed in with Facebook, turn on **Allow access to messages** in the Instagram app:
+   Settings → Messages and story replies → Message controls → Connected tools. (Signing in with Instagram asks for this during login.)
 5. Send your account a DM from a different account. The Overview page should show "Last webhook received just now".
 
 ### About comment triggers and App Review
@@ -122,13 +140,18 @@ DM, story reply and story mention triggers arrive by webhook and are instant.
 | Update after changing code | `docker compose up -d --build` |
 | Back up everything (database + uploaded media) | `docker run --rm -v insta-automation_appdata:/data -v "$PWD":/backup alpine tar czf /backup/backup.tgz -C /data .` |
 
-The access token lasts 60 days and is refreshed automatically. If the server is off for more than ~45 days,
-reconnect from the Overview page.
+The access token is a business system-user token. Whether it expires depends on the login configuration you created;
+the Overview page shows which. If it has an expiry, the Activity log warns a week ahead: click **Reconnect** to get a new one.
+The token also stops working if you remove the app from your business portfolio or move the Instagram account to another one.
 
 ## Troubleshooting
 
-- **"Rejected a webhook call with a missing or invalid signature"** in Activity: set `META_APP_SECRET`
-  (App settings → Basic → App secret) in `.env` and restart. Meta signs with one of the two secrets depending on app setup.
+- **"Rejected a webhook call with a missing or invalid signature"** in Activity: `META_APP_SECRET` does not match
+  the app that sends the webhooks. Copy it again from App settings → Basic and restart.
+- **No "API setup with Unified login" tab:** the app is not owned by a business portfolio.
+- **"This token has no Instagram account assigned":** connect again and tick your Instagram account on the asset screen.
+  If it is not listed, the account is personal (switch to Business/Creator) or sits in a different business portfolio.
+- **"(#200) The account owner has disabled access to Instagram Direct Messaging":** turn on *Allow access to messages* (step 5.4).
 - **No webhooks arriving:** app not in Live mode, account not subscribed (Overview → Re-subscribe webhooks),
   or "Allow access to messages" is off in the Instagram app.
 - **Reply shows "skipped – outside the 24-hour window":** the person's last message is older than 24 hours. This is Meta's rule.
