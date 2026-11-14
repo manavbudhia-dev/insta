@@ -1,9 +1,12 @@
 import crypto from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
 import { config } from './config.js';
+import { db, log } from './db.js';
 
 const SESSION_DAYS = 30;
-const COOKIE = 'sid';
+// Over HTTPS the __Host- prefix makes browsers refuse a cookie that was planted by a subdomain or over plain HTTP.
+const isHttps = () => config.baseUrl.startsWith('https://');
+const cookieName = () => (isHttps() ? '__Host-sid' : 'sid');
 
 function sign(data: string): string {
   return crypto.createHmac('sha256', config.sessionSecret).update(data).digest('base64url');
@@ -34,8 +37,21 @@ function readCookie(req: Request, name: string): string | undefined {
   return undefined;
 }
 
+/** Changing ADMIN_PASSWORD ends every session; the fingerprint is not reversible. */
+function passwordFingerprint(): string {
+  return crypto.createHash('sha256').update(`pw:${config.sessionSecret}:${config.adminPassword}`).digest('hex').slice(0, 16);
+}
+
+/** A session cookie is only honoured while its nonce is still on the server, so logout really ends it. */
+function sessionNonce(value: string | undefined): string | undefined {
+  return value && checkToken('session', value) ? value.split('.')[2] : undefined;
+}
+
 export function isLoggedIn(req: Request): boolean {
-  return checkToken('session', readCookie(req, COOKIE));
+  const nonce = sessionNonce(readCookie(req, cookieName()));
+  if (!nonce) return false;
+  const row = db.prepare('SELECT expires_at, pw_fp FROM sessions WHERE nonce = ?').get(nonce) as { expires_at: number; pw_fp: string } | undefined;
+  return !!row && row.expires_at > Date.now() && row.pw_fp === passwordFingerprint();
 }
 
 export function requireLogin(req: Request, res: Response, next: NextFunction): void {
@@ -58,20 +74,25 @@ export function login(req: Request, res: Response): void {
   const given = crypto.createHash('sha256').update(String(req.body?.password ?? '')).digest();
   const real = crypto.createHash('sha256').update(config.adminPassword).digest();
   if (!crypto.timingSafeEqual(given, real)) {
-    attempts.set(ip, a && a.reset > now ? { n: a.n + 1, reset: a.reset } : { n: 1, reset: now + 15 * 60_000 });
+    const n = a && a.reset > now ? a.n + 1 : 1;
+    attempts.set(ip, a && a.reset > now ? { n, reset: a.reset } : { n, reset: now + 15 * 60_000 });
+    log('warn', `Failed dashboard login from ${ip.replace(/[^\w.:%-]/g, '')} (attempt ${n}${n >= 8 ? ', locked out for 15 minutes' : ''})`);
     res.status(401).json({ error: 'Wrong password' });
     return;
   }
   attempts.delete(ip);
-  const secure = config.baseUrl.startsWith('https://') ? '; Secure' : '';
-  res.setHeader(
-    'Set-Cookie',
-    `${COOKIE}=${makeToken('session', SESSION_DAYS * 86400_000)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_DAYS * 86400}${secure}`,
-  );
+  for (const [k, v] of attempts) if (v.reset <= now) attempts.delete(k); // keep the map from growing forever
+  const secure = isHttps() ? '; Secure' : '';
+  const ttl = SESSION_DAYS * 86400_000;
+  const token = makeToken('session', ttl);
+  db.prepare('INSERT INTO sessions (nonce, expires_at, pw_fp) VALUES (?, ?, ?)').run(token.split('.')[2], now + ttl, passwordFingerprint());
+  res.setHeader('Set-Cookie', `${cookieName()}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_DAYS * 86400}${secure}`);
   res.json({ ok: true });
 }
 
-export function logout(_req: Request, res: Response): void {
-  res.setHeader('Set-Cookie', `${COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`);
+export function logout(req: Request, res: Response): void {
+  const nonce = sessionNonce(readCookie(req, cookieName()));
+  if (nonce) db.prepare('DELETE FROM sessions WHERE nonce = ?').run(nonce);
+  res.setHeader('Set-Cookie', `${cookieName()}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${isHttps() ? '; Secure' : ''}`);
   res.json({ ok: true });
 }

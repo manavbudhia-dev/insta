@@ -1,5 +1,10 @@
 # Caddy obtains and renews the HTTPS certificate for this domain automatically.
 {$DOMAIN} {
 	encode gzip
+	header -Server
+	# Uploads are capped at the app level too; this stops oversized bodies before they reach it.
+	request_body {
+		max_size 400MB
+	}
 	reverse_proxy app:3000
 }

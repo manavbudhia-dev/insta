@@ -1,6 +1,6 @@
 import { db, firstTime, log, opt } from './db.js';
-import { getProfile, isOwnAccount } from './instagram.js';
-import { enqueue } from './queue.js';
+import { getProfile, isOwnAccount, type IgError } from './instagram.js';
+import { enqueue, sendsInFlight } from './queue.js';
 
 export type TriggerType = 'dm' | 'comment' | 'story_reply' | 'story_mention' | 'welcome';
 
@@ -126,9 +126,24 @@ function onCooldown(rule: Rule, igsid: string): boolean {
   if (!rule.cooldown_minutes) return false;
   const since = Date.now() - rule.cooldown_minutes * 60_000;
   const sent = db
-    .prepare("SELECT 1 FROM outbox WHERE rule_id = ? AND igsid = ? AND created_at > ? AND status IN ('pending','sent') LIMIT 1")
+    .prepare("SELECT 1 FROM outbox WHERE rule_id = ? AND igsid = ? AND created_at > ? AND status IN ('pending','sending','sent') LIMIT 1")
     .get(rule.id, igsid, since);
   return !!sent;
+}
+
+/**
+ * Hard ceiling on automated messages one person can trigger per hour, whatever the rules say. Without it a rule
+ * that matches any message would answer another auto-responder (or a spammer) until the global cap is hit.
+ */
+function contactLimited(igsid: string): boolean {
+  const limit = opt('contact_hourly_limit');
+  if (limit <= 0) return false;
+  const n = (db
+    .prepare("SELECT COUNT(*) AS n FROM outbox WHERE igsid = ? AND source = 'auto' AND kind IN ('dm','private_reply') AND created_at > ? AND status IN ('pending','sending','sent')")
+    .get(igsid, Date.now() - 3600_000) as { n: number }).n;
+  if (n < limit) return false;
+  if (firstTime(`limit:${igsid}:${Math.floor(Date.now() / 3600_000)}`)) log('warn', `Automation paused for one contact: ${n} automated replies in the last hour (limit ${limit})`);
+  return true;
 }
 
 interface Contact {
@@ -156,12 +171,18 @@ export function upsertContact(igsid: string, fields: { username?: string; name?:
 
 async function ensureProfile(contact: Contact): Promise<Contact> {
   if (contact.profile_checked) return contact;
-  db.prepare('UPDATE contacts SET profile_checked = 1 WHERE igsid = ?').run(contact.igsid);
   try {
     const p = await getProfile(contact.igsid);
+    db.prepare('UPDATE contacts SET profile_checked = 1 WHERE igsid = ?').run(contact.igsid);
     return upsertContact(contact.igsid, { username: p.username, name: p.name }).contact;
-  } catch {
-    return contact; // profile lookups are best-effort
+  } catch (e) {
+    // Best-effort. A permanent refusal (4xx) will not improve, so stop asking; a rate limit, timeout or
+    // outage is retried on their next message instead of leaving {{first_name}} as "there" forever.
+    const status = (e as IgError).status;
+    if (status >= 400 && status < 500 && status !== 429) {
+      db.prepare('UPDATE contacts SET profile_checked = 1 WHERE igsid = ?').run(contact.igsid);
+    }
+    return contact;
   }
 }
 
@@ -203,6 +224,7 @@ export async function handleMessaging(ev: MessagingEvent): Promise<void> {
 
   if (msg?.is_echo) return handleEcho(ev);
   if (isOwnAccount(senderId) || msg?.is_deleted) return;
+  if (!msg && !ev.postback) return; // reactions, read receipts and other non-message events
 
   const mid = msg?.mid ?? ev.postback?.mid;
   if (mid && !firstTime(`mid:${mid}`)) return;
@@ -235,7 +257,7 @@ export async function handleMessaging(ev: MessagingEvent): Promise<void> {
   if (!priorInbound && (!rule || rule.match_mode === 'any')) {
     rule = pickRule(rules, 'welcome', text) ?? rule;
   }
-  if (!rule || onCooldown(rule, senderId)) return;
+  if (!rule || onCooldown(rule, senderId) || contactLimited(senderId)) return;
 
   enqueue({
     kind: 'dm', target: senderId, igsid: senderId, ruleId: rule.id,
@@ -253,8 +275,12 @@ async function handleEcho(ev: MessagingEvent): Promise<void> {
   const igsid = ev.recipient?.id;
   if (!mid || !igsid) return;
   const known = () => db.prepare('SELECT 1 FROM messages WHERE mid = ?').get(mid);
-  if (!known()) await new Promise((r) => setTimeout(r, 4000)); // our own send may still be recording
+  // The echo of our own send can arrive before the Send API response. Wait until no send is in flight
+  // (each records its message before it finishes) rather than guessing with a fixed delay.
+  const deadline = Date.now() + 35_000;
+  while (!known() && sendsInFlight() > 0 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 100));
   if (known()) return;
+  if (!firstTime(`echo:${mid}`)) return; // redelivered echo must not extend the pause again
   upsertContact(igsid);
   recordMessage({ igsid, direction: 'out', kind: 'dm', text: ev.message?.text ?? '[attachment]', mid, source: 'human' });
   const pauseMin = opt('human_pause_min');
@@ -289,7 +315,7 @@ export function handleComment(c: CommentEvent): void {
 
   if (!opt('automation_enabled')) return;
   const rule = pickRule(activeRules(), 'comment', c.text ?? '', mediaId);
-  if (!rule || onCooldown(rule, contactId)) return;
+  if (!rule || onCooldown(rule, contactId) || contactLimited(contactId)) return;
 
   const contact = { username, name: null };
   if (rule.reply_text.trim()) {

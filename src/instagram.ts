@@ -7,7 +7,8 @@
  */
 import crypto from 'node:crypto';
 import { config, WEBHOOK_FIELDS } from './config.js';
-import { delSetting, getSetting, log, setSetting } from './db.js';
+import { db, delSetting, getSetting, log, setSetting } from './db.js';
+import { isSealed, open as openSecret, seal } from './vault.js';
 
 export class IgError extends Error {
   constructor(
@@ -15,11 +16,17 @@ export class IgError extends Error {
     public status: number,
     public code?: number,
     public subcode?: number,
+    /** A POST whose outcome is unknown (timeout / connection reset): it may already have been delivered. */
+    public ambiguous = false,
   ) {
     super(message);
   }
-  /** Rate limits and server-side hiccups are worth retrying; everything else is not. */
+  /**
+   * Rate limits and server-side hiccups are worth retrying; everything else is not.
+   * An ambiguous send is never retried: the Send API has no idempotency key, so a retry could message the person twice.
+   */
   get transient(): boolean {
+    if (this.ambiguous) return false;
     return this.status >= 500 || this.status === 429 || [1, 2, 4, 17, 32, 613].includes(this.code ?? -1);
   }
   get authFailure(): boolean {
@@ -27,8 +34,22 @@ export class IgError extends Error {
   }
 }
 
+let tokenCache: { stored: string; plain: string } | undefined;
 export function token(): string {
-  return getSetting('ig_token');
+  const stored = getSetting('ig_token');
+  if (!stored) return '';
+  if (tokenCache?.stored !== stored) {
+    const plain = openSecret(stored);
+    if (!plain) log('error', 'The stored Instagram token cannot be decrypted (was SESSION_SECRET changed?). Reconnect the account from the Overview page.');
+    tokenCache = { stored, plain };
+  }
+  return tokenCache.plain;
+}
+
+/** Encrypts a token that an older version stored as plain text. */
+export function sealStoredToken(): void {
+  const stored = getSetting('ig_token');
+  if (stored && !isSealed(stored)) setSetting('ig_token', seal(stored));
 }
 export function connected(): boolean {
   return token() !== '' && getSetting('ig_user_id') !== '';
@@ -71,7 +92,14 @@ async function request<T = any>(
       signal: AbortSignal.timeout(30_000),
     });
   } catch (e) {
-    throw new IgError(`Network error: ${(e as Error).message}`, 503);
+    // Failures before a connection exists are safe to retry; anything later on a POST may have been delivered.
+    const code = String((e as any)?.cause?.code ?? '');
+    const neverSent = ['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'UND_ERR_CONNECT_TIMEOUT'].includes(code);
+    const ambiguous = method === 'POST' && !neverSent;
+    throw new IgError(
+      `Network error: ${(e as Error).message}${ambiguous ? ' (the request may still have been delivered; check Instagram before resending)' : ''}`,
+      503, undefined, undefined, ambiguous,
+    );
   }
   const text = await res.text();
   let json: any = {};
@@ -175,7 +203,7 @@ export async function saveToken(accessToken: string, expiresInSec?: number): Pro
     }
   }
 
-  setSetting('ig_token', accessToken);
+  setSetting('ig_token', seal(accessToken));
   setSetting('ig_token_saved_at', Date.now());
   setSetting('ig_token_expires_at', expiresAt);
   setSetting('client_business_id', me.client_business_id ?? '');
@@ -202,6 +230,11 @@ export function accounts(): IgAccount[] {
 export async function selectAccount(id: string): Promise<void> {
   const account = accounts().find((a) => a.id === id);
   if (!account) throw new Error('That Instagram account was not shared with this app');
+  if (getSetting('ig_user_id') !== account.id) {
+    // A different account: its older comments must not trigger replies, and queued sends belong to the old account.
+    setSetting('connected_at', Date.now());
+    db.prepare("UPDATE outbox SET status = 'skipped', error = 'Instagram account was switched before this was sent' WHERE status = 'pending'").run();
+  }
   setSetting('ig_user_id', account.id);
   setSetting('ig_username', account.username);
   delSetting('webhooks_subscribed');

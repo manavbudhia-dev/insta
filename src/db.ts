@@ -2,7 +2,10 @@ import Database from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from './config.js';
+import { open as openSecret } from './vault.js';
 
+// Everything under the data directory (database, uploads) is readable by this user only.
+process.umask(0o077);
 fs.mkdirSync(path.join(config.dataDir, 'media'), { recursive: true });
 
 export const db = new Database(path.join(config.dataDir, 'app.db'));
@@ -84,7 +87,14 @@ CREATE TABLE IF NOT EXISTS media_cache (
   thumbnail TEXT,
   comments_count INTEGER NOT NULL DEFAULT 0,
   timestamp INTEGER,
-  updated_at INTEGER NOT NULL
+  updated_at INTEGER NOT NULL,
+  comments_polled_at INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+  nonce TEXT PRIMARY KEY,
+  expires_at INTEGER NOT NULL,
+  pw_fp TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS posts (
@@ -107,7 +117,17 @@ CREATE TABLE IF NOT EXISTS logs (
   message TEXT NOT NULL,
   created_at INTEGER NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_messages_dir ON messages(direction, created_at);
+CREATE INDEX IF NOT EXISTS idx_outbox_sent ON outbox(status, sent_at);
+CREATE INDEX IF NOT EXISTS idx_contacts_inbound ON contacts(last_inbound_at);
+CREATE INDEX IF NOT EXISTS idx_posts_status ON posts(status, scheduled_at);
 `);
+
+// Existing databases predate this column.
+if (!(db.prepare('PRAGMA table_info(media_cache)').all() as { name: string }[]).some((c) => c.name === 'comments_polled_at')) {
+  db.exec('ALTER TABLE media_cache ADD COLUMN comments_polled_at INTEGER NOT NULL DEFAULT 0');
+}
 
 const getStmt = db.prepare('SELECT value FROM settings WHERE key = ?');
 const setStmt = db.prepare(
@@ -138,14 +158,30 @@ export const DEFAULTS: Record<string, number> = {
   poll_media_count: 10,
   dm_hourly_limit: 200,
   human_pause_min: 60,
+  /** Automated replies one person can trigger per hour; stops two bots (or a spammer) looping with us. */
+  contact_hourly_limit: 10,
 };
 export function opt(key: keyof typeof DEFAULTS | string): number {
   return getNum(key, DEFAULTS[key] ?? 0);
 }
 
+/** Strips tokens and secrets from text before it is logged, stored or shown in the dashboard. */
+export function redact(text: string): string {
+  let out = String(text)
+    .replace(/((?:access_token|client_secret|appsecret_proof|input_token|code)=)[^&\s"']+/gi, '$1[redacted]')
+    .replace(/(Bearer\s+)[\w.\-|]+/gi, '$1[redacted]')
+    .replace(/\b(?:EAA|IGAA|IGQ)[A-Za-z0-9_-]{20,}/g, '[redacted]');
+  const stored = openSecret((db.prepare("SELECT value FROM settings WHERE key = 'ig_token'").get() as { value: string } | undefined)?.value ?? '');
+  for (const s of [stored, config.metaAppSecret, config.adminPassword, config.sessionSecret, config.webhookVerifyToken]) {
+    if (s && s.length >= 8) out = out.split(s).join('[redacted]');
+  }
+  return out;
+}
+
 const logStmt = db.prepare('INSERT INTO logs (level, message, created_at) VALUES (?, ?, ?)');
 export function log(level: 'info' | 'warn' | 'error', message: string): void {
-  const line = message.slice(0, 1000);
+  // Control characters could forge extra log lines.
+  const line = redact(message).replace(/[\u0000-\u001f\u007f]+/g, ' ').slice(0, 1000);
   logStmt.run(level, line, Date.now());
   (level === 'error' ? console.error : console.log)(`[${level}] ${line}`);
 }
@@ -158,6 +194,7 @@ export function firstTime(key: string): boolean {
 
 export function prune(): void {
   const now = Date.now();
+  db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(now);
   db.prepare('DELETE FROM seen_events WHERE created_at < ?').run(now - 30 * 86400_000);
   db.prepare('DELETE FROM logs WHERE created_at < ?').run(now - 30 * 86400_000);
   db.prepare("DELETE FROM outbox WHERE status != 'pending' AND created_at < ?").run(now - 60 * 86400_000);

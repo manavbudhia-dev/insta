@@ -1,5 +1,5 @@
 import { config } from './config.js';
-import { db, log, opt } from './db.js';
+import { db, log, opt, redact, setSetting } from './db.js';
 import { connected, IgError, replyToComment, sendDm, sendPrivateReply } from './instagram.js';
 
 export const WINDOW_MS = 24 * 3600_000;
@@ -44,6 +44,23 @@ function sentLastHour(): number {
 
 const finish = db.prepare('UPDATE outbox SET status = ?, error = ?, sent_at = ?, attempts = attempts + 1 WHERE id = ?');
 
+/** Sends currently talking to Instagram. The echo handler waits on this so it never mistakes our own message for a human reply. */
+let inFlight = 0;
+export function sendsInFlight(): number {
+  return inFlight;
+}
+
+/**
+ * A job is claimed ('sending') before the API call. If the process dies mid-send we cannot know whether
+ * Instagram delivered it, and the Send API has no idempotency key, so it is failed rather than retried.
+ */
+export function recoverInterrupted(): void {
+  const r = db
+    .prepare("UPDATE outbox SET status = 'failed', error = 'Interrupted by a server restart; it may or may not have been delivered. Check Instagram before resending.' WHERE status = 'sending'")
+    .run();
+  if (r.changes) log('warn', `${r.changes} message(s) were interrupted mid-send and marked failed (not retried, to avoid duplicates)`);
+}
+
 async function process(job: Job): Promise<void> {
   if (job.kind === 'dm' && !windowOpen(job.target)) {
     finish.run('skipped', 'Outside the 24-hour messaging window', null, job.id);
@@ -52,6 +69,14 @@ async function process(job: Job): Promise<void> {
   if (job.kind === 'private_reply' && Date.now() - job.created_at > 7 * 86400_000) {
     finish.run('skipped', 'Comment is older than 7 days', null, job.id);
     return;
+  }
+  if (job.source === 'auto' && job.kind === 'dm') {
+    // The owner may have taken over the chat while this reply was waiting in the queue.
+    const c = db.prepare('SELECT paused_until FROM contacts WHERE igsid = ?').get(job.target) as { paused_until: number } | undefined;
+    if (c && c.paused_until > Date.now()) {
+      finish.run('skipped', 'Automation is paused for this person', null, job.id);
+      return;
+    }
   }
   const payload = JSON.parse(job.payload);
   try {
@@ -76,10 +101,16 @@ async function process(job: Job): Promise<void> {
     }
   } catch (e) {
     const err = e as IgError;
+    err.message = redact(err.message);
     const attempts = job.attempts + 1;
+    if (err.code === 368) {
+      // Instagram temporarily blocked the account for policy reasons. Continuing to send makes that worse.
+      setSetting('automation_enabled', 0);
+      log('error', 'Instagram temporarily blocked sending from this account (code 368). Automation has been switched off; review your rules, then turn it back on in Settings.');
+    }
     if (err.transient && attempts < MAX_ATTEMPTS) {
       const delay = Math.min(30 * 60_000, 30_000 * 2 ** attempts);
-      db.prepare('UPDATE outbox SET attempts = ?, next_attempt_at = ?, error = ? WHERE id = ?').run(attempts, Date.now() + delay, err.message, job.id);
+      db.prepare("UPDATE outbox SET status = 'pending', attempts = ?, next_attempt_at = ?, error = ? WHERE id = ?").run(attempts, Date.now() + delay, err.message, job.id);
       log('warn', `Send #${job.id} failed (attempt ${attempts}), retrying: ${err.message}`);
     } else {
       finish.run('failed', err.message, null, job.id);
@@ -88,18 +119,29 @@ async function process(job: Job): Promise<void> {
   }
 }
 
+const claim = db.prepare("UPDATE outbox SET status = 'sending' WHERE id = ? AND status = 'pending'");
 let busy = false;
+let stopping = false;
+let timer: NodeJS.Timeout | undefined;
+
 async function tick(): Promise<void> {
-  if (busy || !connected()) return;
+  if (busy || stopping || !connected()) return;
   busy = true;
   try {
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 20 && !stopping; i++) {
       if (sentLastHour() >= opt('dm_hourly_limit')) return; // hourly cap reached; jobs wait in the queue
+      // With the automation switch off, only messages typed by hand go out; automated ones wait.
       const job = db
-        .prepare("SELECT * FROM outbox WHERE status = 'pending' AND next_attempt_at <= ? ORDER BY (source = 'manual') DESC, id LIMIT 1")
-        .get(Date.now()) as Job | undefined;
+        .prepare("SELECT * FROM outbox WHERE status = 'pending' AND next_attempt_at <= ? AND (source = 'manual' OR ? = 1) ORDER BY (source = 'manual') DESC, id LIMIT 1")
+        .get(Date.now(), opt('automation_enabled') ? 1 : 0) as Job | undefined;
       if (!job) return;
-      await process(job);
+      if (!claim.run(job.id).changes) continue; // deleted or changed since it was read
+      inFlight++;
+      try {
+        await process(job);
+      } finally {
+        inFlight--;
+      }
       await new Promise((r) => setTimeout(r, config.sendGapMs));
     }
   } catch (e) {
@@ -110,5 +152,15 @@ async function tick(): Promise<void> {
 }
 
 export function startQueue(): NodeJS.Timeout {
-  return setInterval(tick, config.queueTickMs);
+  recoverInterrupted();
+  timer = setInterval(tick, config.queueTickMs);
+  return timer;
+}
+
+/** Stop picking up work and let the send in progress finish (used on shutdown). */
+export async function stopQueue(timeoutMs = 25_000): Promise<void> {
+  stopping = true;
+  if (timer) clearInterval(timer);
+  const end = Date.now() + timeoutMs;
+  while (busy && Date.now() < end) await new Promise((r) => setTimeout(r, 100));
 }

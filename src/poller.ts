@@ -34,22 +34,48 @@ const upsertMedia = db.prepare(`
     thumbnail = excluded.thumbnail, comments_count = excluded.comments_count, timestamp = excluded.timestamp, updated_at = excluded.updated_at
 `);
 
-export async function pollOnce(): Promise<void> {
+const RESCAN_MS = Number(process.env.COMMENT_RESCAN_MS ?? 10 * 60_000);
+
+/** The background loop and the dashboard's refresh button share one run instead of doubling the API calls. */
+let current: Promise<void> | null = null;
+export function pollOnce(): Promise<void> {
+  return (current ??= pollNow().finally(() => {
+    current = null;
+  }));
+}
+
+async function pollNow(): Promise<void> {
   const media = await refreshMedia();
   const connectedAt = getNum('connected_at', Date.now());
+  let firstError: unknown;
   for (const m of media) {
-    const cached = db.prepare('SELECT comments_count FROM media_cache WHERE id = ?').get(m.id) as { comments_count: number } | undefined;
-    const count = m.comments_count ?? 0;
-    const changed = !cached ? count > 0 : count !== cached.comments_count;
-    if (changed && opt('poll_comments')) {
-      await pollComments(m.id, connectedAt);
+    try {
+      const cached = db.prepare('SELECT comments_count, comments_polled_at FROM media_cache WHERE id = ?').get(m.id) as
+        { comments_count: number; comments_polled_at: number } | undefined;
+      const count = m.comments_count ?? 0;
+      const changed = !cached ? count > 0 : count !== cached.comments_count;
+      // The count alone can miss comments (one deleted + one added leaves it unchanged), so a post that is still
+      // young enough for private replies is also re-read every few minutes. Older posts rely on the count.
+      const ts = m.timestamp ? Date.parse(m.timestamp) : 0;
+      const recent = ts > 0 && Date.now() - ts < 7 * 86400_000 && count > 0;
+      const due = recent && Date.now() - (cached?.comments_polled_at ?? 0) > RESCAN_MS;
+      let polled = false;
+      if ((changed || due) && opt('poll_comments')) {
+        await pollComments(m.id, connectedAt);
+        polled = true;
+      }
+      upsertMedia.run({
+        id: m.id, caption: m.caption ?? '', permalink: m.permalink ?? '', media_type: m.media_type ?? '',
+        thumbnail: m.thumbnail_url ?? (m.media_type === 'VIDEO' ? '' : m.media_url ?? ''),
+        comments_count: count, timestamp: m.timestamp ? Date.parse(m.timestamp) : null, updated_at: Date.now(),
+      });
+      if (polled) db.prepare('UPDATE media_cache SET comments_polled_at = ? WHERE id = ?').run(Date.now(), m.id);
+    } catch (e) {
+      // One post that errors must not starve the others. Its cache row is left alone so it is retried next round.
+      firstError ??= e;
     }
-    upsertMedia.run({
-      id: m.id, caption: m.caption ?? '', permalink: m.permalink ?? '', media_type: m.media_type ?? '',
-      thumbnail: m.thumbnail_url ?? (m.media_type === 'VIDEO' ? '' : m.media_url ?? ''),
-      comments_count: count, timestamp: m.timestamp ? Date.parse(m.timestamp) : null, updated_at: Date.now(),
-    });
   }
+  if (firstError) throw firstError;
 }
 
 /** Some API setups reject the `from` field; learn that once and stop asking for it. */

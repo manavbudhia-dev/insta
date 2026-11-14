@@ -23,6 +23,8 @@ export const config = {
   /** Worker tick intervals (ms); lowered in tests. */
   queueTickMs: Number(env('QUEUE_TICK_MS', '2000')),
   sendGapMs: Number(env('SEND_GAP_MS', '1500')),
+  /** Upper bound for uploaded post media on disk. */
+  maxMediaBytes: Number(env('MAX_MEDIA_MB', '5120')) * 1024 * 1024,
 };
 
 /** Permissions the login configuration must include (chosen in the Meta dashboard, not in the URL). */
@@ -38,4 +40,17 @@ export function assertConfig(): void {
     console.error('Missing required configuration:\n  - ' + missing.join('\n  - '));
     process.exit(1);
   }
+  // Warnings only: refusing to start would take a working deployment down on upgrade.
+  const warn: string[] = [];
+  const weak = ['password', 'changeme', 'admin', '12345678', 'qwertyui', 'letmein'];
+  if (config.adminPassword.length < 12 || weak.some((w) => config.adminPassword.toLowerCase().includes(w))) {
+    warn.push('ADMIN_PASSWORD is short or easy to guess; use 12+ random characters');
+  }
+  if (config.sessionSecret.length < 32) warn.push('SESSION_SECRET should be at least 32 characters (openssl rand -hex 32)');
+  if (config.adminPassword === config.sessionSecret) warn.push('ADMIN_PASSWORD and SESSION_SECRET must not be the same value');
+  if (process.env.NODE_ENV === 'production' && !config.baseUrl.startsWith('https://')) {
+    warn.push('BASE_URL is not https: the session cookie will not be marked Secure and traffic is unencrypted');
+  }
+  if (!config.metaAppSecret) warn.push('META_APP_SECRET is not set: webhooks cannot be verified, so every webhook is rejected');
+  for (const w of warn) console.warn(`[security] ${w}`);
 }

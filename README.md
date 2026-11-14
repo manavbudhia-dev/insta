@@ -187,3 +187,15 @@ comment polling, uploads and scheduled publishing. `npm run dev` needs a `.env` 
 
 Layout: `src/engine.ts` (rule matching), `src/queue.ts` (rate-limited sender), `src/webhook.ts`, `src/poller.ts`
 (comment fallback), `src/scheduler.ts` (publishing, token refresh), `src/api.ts` (dashboard API), `public/` (dashboard).
+
+---
+
+## Security
+
+- **Dashboard login:** signed, revocable sessions (logout and `ADMIN_PASSWORD` changes end them), 8 attempts per 15 minutes per IP, failed logins logged. Over HTTPS the cookie is `__Host-`, `Secure`, `HttpOnly`, `SameSite=Strict`.
+- **Cross-site protection:** state-changing API calls from another origin are refused; strict CSP, `frame-ancestors 'none'`, HSTS and no-store caching on API responses.
+- **Secrets:** the Instagram token is encrypted in the database (key derived from `SESSION_SECRET`, so changing it means reconnecting). Tokens and secrets are redacted from logs and error messages. Data files are created owner-only.
+- **Webhooks:** every call must carry a valid `X-Hub-Signature-256`.
+- **Messaging guardrails:** hourly cap, per-person hourly cap (default 10, stops reply loops), 24-hour window, de-duplication, and no retry of a send whose outcome is unknown. If Instagram reports a temporary block (code 368), automation switches itself off.
+- **Uploads:** images are re-encoded (strips metadata and payloads), videos are checked by file signature, media is served sandboxed, and total media size is capped (`MAX_MEDIA_MB`, default 5120).
+- **Container:** the app drops to an unprivileged user, the compose service is read-only with all capabilities dropped except what the entrypoint needs, and Caddy limits request size.

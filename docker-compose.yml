@@ -7,6 +7,27 @@ services:
       - appdata:/data
     expose:
       - "3000"
+    # Hardening: read-only image, no new privileges, only the capabilities the entrypoint needs
+    # to chown the volume and drop to the unprivileged user.
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+      - FOWNER
+    pids_limit: 256
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   caddy:
     image: caddy:2
@@ -16,6 +37,8 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    security_opt:
+      - no-new-privileges:true
     environment:
       DOMAIN: ${DOMAIN:?Set DOMAIN in .env}
     volumes:

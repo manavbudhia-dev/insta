@@ -65,14 +65,27 @@
 
   // ---------- plumbing ----------
 
-  async function api(path, opts = {}) {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function request(path, opts, retries) {
     const init = { method: opts.method ?? 'GET', headers: {} };
     if (opts.form) init.body = opts.form;
     else if (opts.body !== undefined) {
       init.headers['Content-Type'] = 'application/json';
       init.body = JSON.stringify(opts.body);
     }
-    const res = await fetch('/api' + path, init);
+    let res;
+    try {
+      init.signal = AbortSignal.timeout(opts.form ? 300000 : 20000);
+      res = await fetch('/api' + path, init);
+    } catch {
+      if (retries > 0) {
+        await sleep(700);
+        return request(path, opts, retries - 1);
+      }
+      const err = new Error('Cannot reach the server right now. Retrying in the background.');
+      err.network = true;
+      throw err;
+    }
     if (res.status === 401 && path !== '/login') {
       showLogin();
       throw new Error('Please sign in again');
@@ -80,6 +93,15 @@
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
     return data;
+  }
+  // Identical GETs that are already in flight share one request; GETs retry once on a dropped connection.
+  const inflight = new Map();
+  function api(path, opts = {}) {
+    if ((opts.method ?? 'GET') !== 'GET') return request(path, opts, 0);
+    if (inflight.has(path)) return inflight.get(path);
+    const p = request(path, opts, 1).finally(() => inflight.delete(path));
+    inflight.set(path, p);
+    return p;
   }
 
   let toastTimer;
@@ -92,14 +114,22 @@
     toastTimer = setTimeout(() => (t.hidden = true), isError ? 6000 : 3000);
   }
   /** Run an async action, surfacing failures as a toast. */
+  let lastNet = 0;
   const run = (fn, okMsg) => async (...args) => {
     try {
       await fn(...args);
       if (okMsg) toast(okMsg);
     } catch (e) {
-      toast(e.message, true);
+      if (e.network) {
+        if (Date.now() - lastNet > 10000) { lastNet = Date.now(); toast(e.message, true); }
+      } else toast(e.message, true);
     }
   };
+  const debounce = (fn, ms) => {
+    let t;
+    return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+  };
+  const visible = () => !document.hidden;
 
   const modalHead = (title) => `<div class="modal-head"><h2>${title}</h2><button type="button" class="x" id="m-close" aria-label="Close">${ic('x')}</button></div>`;
   function openModal(html) {
@@ -235,10 +265,13 @@
     if (b) b.onclick = run(() => setPaused(false));
   }
 
-  async function refreshChrome() {
+  let chromeAt = 0;
+  async function refreshChrome(force = false) {
+    if (!force && Date.now() - chromeAt < 5000) return;
+    chromeAt = Date.now();
     try {
       chrome = await api('/shell');
-    } catch { return; }
+    } catch { chromeAt = 0; return; }
     const badge = $('#badge');
     badge.textContent = chrome.badge > 99 ? '99+' : chrome.badge;
     badge.hidden = !chrome.badge;
@@ -250,7 +283,7 @@
   async function setPaused(paused) {
     await api('/settings', { method: 'PUT', body: { automation_enabled: paused ? 0 : 1 } });
     toast(paused ? 'Automations paused' : 'Automations resumed');
-    await refreshChrome();
+    await refreshChrome(true);
     if (currentView === 'overview' || currentView === 'settings') route();
   }
 
@@ -301,18 +334,28 @@
 
   const views = {};
   let refreshTimer;
-  function route() {
+  let gen = 0; // bumped on every navigation so a slow, old page can never draw over a newer one
+  async function routeNow() {
     const name = (location.hash || '#overview').slice(1).split('/')[0];
     const view = views[name] ? name : 'overview';
+    const g = ++gen;
     currentView = view;
     $$('#nav a').forEach((a) => a.classList.toggle('active', a.dataset.view === view));
     clearInterval(refreshTimer);
     renderTopbar();
     refreshChrome();
-    run(views[view])();
+    try {
+      await views[view]();
+    } catch (e) {
+      if (g !== gen) return;
+      main.innerHTML = `<section class="card"><div class="empty">${esc(e.message)}<br><button class="btn primary" id="retry" type="button">${ic('refresh')}Try again</button></div></section>`;
+      $('#retry').onclick = route;
+    }
   }
+  const route = debounce(routeNow, 80);
   window.addEventListener('hashchange', () => { closeModal(); route(); });
-  setInterval(() => { if (!$('#app').hidden) refreshChrome(); }, 30000);
+  setInterval(() => { if (!$('#app').hidden && visible()) refreshChrome(); }, 60000);
+  document.addEventListener('visibilitychange', () => { if (visible() && !$('#app').hidden) refreshChrome(); });
 
   async function start() {
     const s = await fetch('/api/session').then((r) => r.json());
@@ -440,23 +483,32 @@
     };
     show(data.length - 1, false);
     const th = $('#th', el);
+    let raf = 0;
     th.onpointermove = (e) => {
-      const r = el.getBoundingClientRect();
-      const px = ((e.clientX - r.left) / r.width) * W;
-      show(Math.max(0, Math.min(data.length - 1, Math.round(((px - m.l) / iw) * (data.length - 1)))), true);
+      if (raf) return;
+      const cx = e.clientX;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const r = el.getBoundingClientRect();
+        const px = ((cx - r.left) / r.width) * W;
+        show(Math.max(0, Math.min(data.length - 1, Math.round(((px - m.l) / iw) * (data.length - 1)))), true);
+      });
     };
     th.onpointerleave = () => show(data.length - 1, false);
   }
 
   views.overview = async () => {
     const tz = -new Date().getTimezoneOffset();
-    const [s, ov, rules, posts] = await Promise.all([api('/status'), api(`/overview?days=${trendDays}&tz=${tz}`), api('/rules'), api('/posts')]);
+    const g = gen;
+    const [s, ov] = await Promise.all([api('/status'), api(`/overview?days=${trendDays}&tz=${tz}`)]);
+    if (g !== gen) return;
+    const rules = ov.rules;
     const a = s.account, c = s.config;
     const daysLeft = a && a.tokenExpiresAt ? Math.floor((a.tokenExpiresAt - Date.now()) / 86400000) : null;
     const tokenNote = daysLeft === null ? 'The access token does not expire.' : daysLeft < 0 ? 'The access token has EXPIRED — reconnect.' : `The access token is valid for ${daysLeft} more days — reconnect before then.`;
     const metaReady = c.appId && c.appSecret && c.configId;
     const webhookSeen = s.health.lastWebhookAt > 0;
-    const upcoming = posts.filter((p) => p.status === 'scheduled' || p.status === 'publishing').slice(0, 3);
+    const upcoming = ov.upcoming;
     const refreshAfter = () => reload();
 
     const steps = [
@@ -525,7 +577,7 @@
                   <div class="grow"><b>${IG('ig')}<em>${esc(postTitle(p))}</em></b><span>${ic('calendar')}${slot(p.scheduled_at)}</span></div>
                   <span class="pill ${p.status === 'publishing' ? 'warn' : 'ok'}">${p.status === 'publishing' ? 'Publishing…' : 'Scheduled'}</span>
                   <button class="kebab" type="button" data-pop data-menu-post="${p.id}" aria-label="More">${ic('more')}</button>
-                </div>`).join('') + (posts.length > upcoming.length ? `<div style="margin-top:8px"><a class="link" href="#posts">Open scheduler</a></div>` : '')
+                </div>`).join('') + (ov.postCount > upcoming.length ? `<div style="margin-top:8px"><a class="link" href="#posts">Open scheduler</a></div>` : '')
                 : `<div class="empty">Nothing scheduled yet.<br><button class="btn primary" id="empty-post" type="button">${ic('plus')}Schedule post</button></div>`}
             </section>
           </div>
@@ -572,13 +624,13 @@
       ]);
     }));
     $$('[data-menu-post]').forEach((b) => (b.onclick = () => {
-      const p = posts.find((x) => x.id == b.dataset.menuPost);
+      const p = upcoming.find((x) => x.id == b.dataset.menuPost);
       popover(b, [
         { icon: 'edit', label: 'Edit', onClick: () => postForm(p) },
         { icon: 'trash', label: 'Delete', danger: true, onClick: async () => { if (!confirm('Remove this post from the scheduler? (A published post stays on Instagram.)')) return; await api(`/posts/${p.id}`, { method: 'DELETE' }); refreshAfter(); } },
       ]);
     }));
-    refreshTimer = setInterval(() => !$('#modal').hidden || pop || run(views.overview)(), 60000);
+    refreshTimer = setInterval(() => visible() && $('#modal').hidden && !pop && run(views.overview)(), 90000);
   };
 
   // ---------- automations ----------
@@ -603,7 +655,9 @@
   const mediaLabel = (m) => (m ? `${new Date(m.timestamp).toLocaleDateString()} · ${(m.caption || m.media_type || 'post').slice(0, 40)}` : '');
 
   views.rules = async () => {
+    const g = gen;
     const [rules, media] = await Promise.all([api('/rules'), api('/media')]);
+    if (g !== gen) return;
     main.innerHTML = `
       <section class="card">
         <div class="card-head"><div><h2>Your automations</h2><p>${rules.length} rule${rules.length === 1 ? '' : 's'} · ${rules.filter((r) => r.enabled).length} active</p></div><button class="btn primary" id="new-rule" type="button">${ic('plus')}New automation</button></div>
@@ -712,7 +766,8 @@
         <div class="chat" id="chat"><div class="empty">Select a conversation.</div></div>
       </div>`;
     const loadThreads = async () => {
-      const list = await api('/contacts?q=' + encodeURIComponent($('#search').value));
+      const list = await api('/contacts?q=' + encodeURIComponent($('#search')?.value ?? ''));
+      if (!$('#threads')) return;
       $('#threads').innerHTML = list.length ? list.map((c) => `
         <div class="thread ${c.igsid === openContact ? 'active' : ''}" data-id="${esc(c.igsid)}">
           <div class="av">${initialOf(c)}</div>
@@ -729,6 +784,7 @@
       if (!openContact) return;
       const draft = keepDraft ? $('#chat textarea')?.value ?? '' : '';
       const d = await api(`/contacts/${encodeURIComponent(openContact)}/messages`);
+      if (!$('#chat')) return;
       const c = d.contact;
       const paused = c.paused_until > Date.now();
       const KIND = { comment: 'comment', private_reply: 'DM reply to comment', comment_reply: 'public reply', story_reply: 'story reply', story_mention: 'story mention' };
@@ -771,9 +827,10 @@
     await loadThreads();
     loadChat();
     refreshTimer = setInterval(() => {
+      if (!visible()) return;
       run(loadThreads)();
       if (document.activeElement?.tagName !== 'TEXTAREA') loadChat(true);
-    }, 15000);
+    }, 20000);
   };
 
   // ---------- scheduler ----------
@@ -784,7 +841,9 @@
   };
 
   views.posts = async () => {
+    const g = gen;
     const posts = await api('/posts');
+    if (g !== gen) return;
     const pill = (p) => ({ scheduled: '<span class="pill ok">Scheduled</span>', publishing: '<span class="pill warn">Publishing…</span>', published: '<span class="pill accent">Published</span>', failed: '<span class="pill bad">Failed</span>' }[p.status]);
     main.innerHTML = `
       <section class="card">
@@ -807,7 +866,7 @@
       await api(`/posts/${b.dataset.del}`, { method: 'DELETE' });
       views.posts();
     })));
-    refreshTimer = setInterval(() => !$('#modal').hidden || run(views.posts)(), 20000);
+    refreshTimer = setInterval(() => visible() && $('#modal').hidden && run(views.posts)(), 30000);
   };
 
   const thumb = (m) => `<span class="thumb">${m.kind === 'video' ? `<video src="${esc(m.url)}" muted preload="metadata"></video>` : `<img src="${esc(m.url)}" alt="" loading="lazy">`}</span>`;
@@ -873,9 +932,11 @@
   // ---------- activity ----------
 
   views.activity = async () => {
+    const g = gen;
     const [outbox, logs] = await Promise.all([api('/outbox'), api('/logs')]);
+    if (g !== gen) return;
     const KIND = { dm: 'DM', private_reply: 'DM reply to comment', comment_reply: 'Public reply' };
-    const cls = { sent: 'ok', pending: 'accent', failed: 'bad', skipped: 'warn' };
+    const cls = { sent: 'ok', pending: 'accent', sending: 'accent', failed: 'bad', skipped: 'warn' };
     main.innerHTML = `
       <div class="stack">
         <section class="card"><div class="card-head"><h2>Sent replies</h2></div>${outbox.length ? `<div class="table-wrap"><table>
@@ -898,12 +959,15 @@
   // ---------- settings ----------
 
   views.settings = async () => {
+    const g = gen;
     const s = await api('/settings');
+    if (g !== gen) return;
     main.innerHTML = `
       <form class="card form" id="settings-form" style="max-width:660px">
         <label class="check"><input type="checkbox" class="switch" name="automation_enabled" ${s.automation_enabled ? 'checked' : ''}> Automations are running</label>
         <label>Maximum replies per hour <span class="hint">A safety cap. Extra replies wait in the queue instead of being dropped.</span><input type="number" name="dm_hourly_limit" min="1" max="1000" value="${s.dm_hourly_limit}"></label>
         <label>Pause automation after I reply by hand (minutes) <span class="hint">When you answer someone from the Instagram app, automations stay quiet in that chat for this long. 0 turns this off.</span><input type="number" name="human_pause_min" min="0" max="10080" value="${s.human_pause_min}"></label>
+        <label>Maximum automated replies per person per hour <span class="hint">Stops a loop with another auto-responder, or one person triggering endless replies.</span><input type="number" name="contact_hourly_limit" min="1" max="100" value="${s.contact_hourly_limit}"></label>
         <label class="check"><input type="checkbox" class="switch" name="poll_comments" ${s.poll_comments ? 'checked' : ''}> Check for new comments through the API</label>
         <p class="hint">Comment webhooks only work once Meta grants your app Advanced Access. Until then this check finds new comments by itself. Leaving it on with webhooks is safe: each comment is handled once.</p>
         <div class="cols">
@@ -917,10 +981,10 @@
       const f = e.target;
       await api('/settings', { method: 'PUT', body: {
         automation_enabled: f.automation_enabled.checked ? 1 : 0, poll_comments: f.poll_comments.checked ? 1 : 0,
-        dm_hourly_limit: f.dm_hourly_limit.value, human_pause_min: f.human_pause_min.value,
+        dm_hourly_limit: f.dm_hourly_limit.value, human_pause_min: f.human_pause_min.value, contact_hourly_limit: f.contact_hourly_limit.value,
         poll_interval_sec: f.poll_interval_sec.value, poll_media_count: f.poll_media_count.value,
       } });
-      await refreshChrome();
+      await refreshChrome(true);
     }, 'Settings saved');
   };
 

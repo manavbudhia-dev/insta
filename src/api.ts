@@ -5,9 +5,9 @@ import express, { type Request, type Response } from 'express';
 import multer from 'multer';
 import sharp from 'sharp';
 import { config, PERMISSIONS } from './config.js';
-import { db, DEFAULTS, getSetting, log, opt, setSetting } from './db.js';
+import { db, DEFAULTS, getSetting, log, opt, redact, setSetting } from './db.js';
 import { clip, parseRule } from './engine.js';
-import { accounts, connected, disconnect, saveToken, selectAccount, subscribeWebhooks } from './instagram.js';
+import { accounts, connected, disconnect, IgError, saveToken, selectAccount, subscribeWebhooks } from './instagram.js';
 import { pollOnce } from './poller.js';
 import { enqueue, windowOpen } from './queue.js';
 
@@ -28,9 +28,11 @@ function h(fn: (req: Request, res: Response) => unknown) {
       const out = await fn(req, res);
       if (!res.headersSent) res.json(out ?? { ok: true });
     } catch (e) {
-      const status = e instanceof BadRequest ? 400 : 500;
-      if (status === 500) console.error(e);
-      res.status(status).json({ error: (e as Error).message });
+      // Instagram's own message is useful to the admin (minus any secret); anything else stays in the server log.
+      if (e instanceof BadRequest) return void res.status(400).json({ error: e.message });
+      if (e instanceof IgError) return void res.status(502).json({ error: redact(e.message) });
+      log('error', `API ${req.method} ${req.path} failed: ${(e as Error).message}`);
+      res.status(500).json({ error: 'Something went wrong. The details are in the Logs.' });
     }
   };
 }
@@ -76,7 +78,7 @@ api.get('/status', h(() => {
       inbound24h: count("SELECT COUNT(*) n FROM messages WHERE direction = 'in' AND created_at > ?", day),
       sent24h: count("SELECT COUNT(*) n FROM outbox WHERE status = 'sent' AND sent_at > ?", day),
       sentLastHour: count("SELECT COUNT(*) n FROM outbox WHERE status = 'sent' AND sent_at > ?", now - 3600_000),
-      pending: count("SELECT COUNT(*) n FROM outbox WHERE status = 'pending'"),
+      pending: count("SELECT COUNT(*) n FROM outbox WHERE status IN ('pending','sending')"),
       failed24h: count("SELECT COUNT(*) n FROM outbox WHERE status = 'failed' AND created_at > ?", day),
       contacts: count('SELECT COUNT(*) n FROM contacts'),
       activeRules: count('SELECT COUNT(*) n FROM rules WHERE enabled = 1'),
@@ -172,6 +174,9 @@ api.get('/overview', h((req) => {
     trend,
     prevTotal: recvPrev,
     ruleReplies,
+    rules: db.prepare('SELECT * FROM rules ORDER BY priority DESC, id').all().map(parseRule),
+    upcoming: (db.prepare("SELECT * FROM posts WHERE status IN ('scheduled','publishing') ORDER BY scheduled_at ASC LIMIT 3").all() as any[]).map((p) => ({ ...p, media: JSON.parse(p.media) })),
+    postCount: one('SELECT COUNT(*) n FROM posts'),
     recent: ev.slice(0, 4),
   };
 }));
@@ -326,26 +331,62 @@ api.get('/logs', h(() => db.prepare('SELECT * FROM logs ORDER BY id DESC LIMIT 2
 
 // ---------- scheduled posts ----------
 
+/** Total size of the uploaded media on disk. */
+function dirBytes(dir: string): number {
+  let total = 0;
+  for (const name of fs.readdirSync(dir)) {
+    try {
+      total += fs.statSync(path.join(dir, name)).size;
+    } catch {
+      /* removed while scanning */
+    }
+  }
+  return total;
+}
+
+/** MP4 and MOV files start with a box header: 4 size bytes, then a known box type. */
+function looksLikeVideo(file: string): boolean {
+  const fd = fs.openSync(file, 'r');
+  try {
+    const head = Buffer.alloc(12);
+    fs.readSync(fd, head, 0, 12, 0);
+    return ['ftyp', 'moov', 'mdat', 'wide', 'free', 'skip'].includes(head.subarray(4, 8).toString('latin1'));
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif', '.avif', '.gif', '.tiff']);
 const VIDEO_EXT = new Set(['.mp4', '.mov']);
 
 api.post('/upload', upload.array('files', 20), h(async (req) => {
   const files = (req.files as Express.Multer.File[] | undefined) ?? [];
-  if (!files.length) bad('No file received');
+  if (!files.length) {
+    bad('No file received');
+  }
+  if (dirBytes(mediaDir) + files.reduce((n, f) => n + f.size, 0) > config.maxMediaBytes) {
+    for (const f of files) fs.rm(f.path, { force: true }, () => {});
+    bad('The media library is full. Delete old posts or raise MAX_MEDIA_MB.');
+  }
   const out: { url: string; kind: 'image' | 'video'; name: string }[] = [];
   try {
     for (const f of files) {
       const ext = path.extname(f.originalname).toLowerCase();
       const id = crypto.randomBytes(16).toString('hex');
       if (VIDEO_EXT.has(ext)) {
+        if (!looksLikeVideo(f.path)) bad(`${f.originalname} is not a valid MP4/MOV video`);
         const name = `${id}${ext}`;
         fs.renameSync(f.path, path.join(mediaDir, name));
         out.push({ url: `${config.baseUrl}/media/${name}`, kind: 'video', name: f.originalname });
       } else if (IMAGE_EXT.has(ext)) {
         // Instagram only accepts JPEG, so every image is normalised (and EXIF-rotated) to JPEG.
         const name = `${id}.jpg`;
-        await sharp(f.path).rotate().resize({ width: 1440, withoutEnlargement: true }).flatten({ background: '#ffffff' })
-          .jpeg({ quality: 90 }).toFile(path.join(mediaDir, name));
+        try {
+          await sharp(f.path, { limitInputPixels: 100_000_000 }).rotate().resize({ width: 1440, withoutEnlargement: true }).flatten({ background: '#ffffff' })
+            .jpeg({ quality: 90 }).toFile(path.join(mediaDir, name));
+        } catch {
+          bad(`${f.originalname} could not be read as an image`);
+        }
         out.push({ url: `${config.baseUrl}/media/${name}`, kind: 'image', name: f.originalname });
       } else {
         bad(`Unsupported file type: ${f.originalname} (use JPG/PNG/WebP images or MP4/MOV video)`);
@@ -402,7 +443,7 @@ api.get('/settings', h(() => Object.fromEntries(Object.keys(DEFAULTS).map((k) =>
 api.put('/settings', h((req) => {
   const limits: Record<string, [number, number]> = {
     automation_enabled: [0, 1], poll_comments: [0, 1], poll_interval_sec: [30, 3600],
-    poll_media_count: [1, 50], dm_hourly_limit: [1, 1000], human_pause_min: [0, 10080],
+    poll_media_count: [1, 50], dm_hourly_limit: [1, 1000], human_pause_min: [0, 10080], contact_hourly_limit: [1, 100],
   };
   for (const [k, [min, max]] of Object.entries(limits)) {
     if (req.body?.[k] === undefined) continue;

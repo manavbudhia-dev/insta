@@ -22,6 +22,7 @@ const calls: Call[] = [];
 let comments: any[] = [];
 let commentsCount = 0;
 let failNextSend = 0;
+let blockSends = false;
 let assigned: any[] = [{ id: OWN_ID, username: 'myshop' }];
 
 const mock = http.createServer((req, res) => {
@@ -47,6 +48,7 @@ const mock = http.createServer((req, res) => {
     if (/^\/\d+\/subscribed_apps$/.test(p)) return send(200, { success: true });
     if (p === '/me/messages' || p === '/me/media' || p === '/me/media_publish') return send(400, { error: { message: 'mock: /me is not the Instagram account', code: 100 } });
     if (p === `/${OWN_ID}/messages`) {
+      if (blockSends) return send(400, { error: { message: 'Temporarily blocked', code: 368 } });
       if (failNextSend > 0) {
         failNextSend--;
         return send(400, { error: { message: 'Simulated permanent failure', code: 100 } });
@@ -316,4 +318,55 @@ test('image upload is converted to JPEG and served publicly', async () => {
   assert.equal(pub.headers.get('content-type'), 'image/jpeg');
   const anon = await fetch(APP + '/api/upload', { method: 'POST', body: form });
   assert.equal(anon.status, 401);
+});
+
+test('security headers, cross-site requests, malformed input and the token at rest', async () => {
+  const page = await fetch(APP + '/');
+  assert.match(page.headers.get('content-security-policy')!, /default-src 'self'.*frame-ancestors 'none'/);
+  assert.equal(page.headers.get('x-frame-options'), 'DENY');
+  assert.equal((await call('GET', '/api/status')).res.headers.get('cache-control'), 'no-store');
+
+  const post = (headers: Record<string, string>, body: string) =>
+    fetch(APP + '/api/rules', { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: cookie, ...headers }, body });
+  assert.equal((await post({ Origin: 'https://evil.test' }, '{}')).status, 403);
+  assert.equal((await post({ Origin: 'null' }, '{}')).status, 403);
+  assert.notEqual((await post({ Origin: APP }, '{}')).status, 403);
+
+  const broken = await post({}, '{not json');
+  assert.equal(broken.status, 400);
+  assert.deepEqual(await broken.json(), { error: 'Bad request' }); // no stack trace
+
+  const fake = (name: string, type: string) => {
+    const form = new FormData();
+    form.append('files', new Blob(['this is not media at all'], { type }), name);
+    return fetch(APP + '/api/upload', { method: 'POST', headers: { Cookie: cookie }, body: form });
+  };
+  assert.equal((await fake('clip.mp4', 'video/mp4')).status, 400);
+  assert.equal((await fake('pic.png', 'image/png')).status, 400);
+
+  const Database = (await import('better-sqlite3')).default;
+  const raw = new Database(path.join(dataDir, 'app.db'), { readonly: true });
+  const stored = (raw.prepare("SELECT value FROM settings WHERE key = 'ig_token'").get() as { value: string }).value;
+  raw.close();
+  assert.match(stored, /^enc:v1:/);
+  assert.ok(!stored.includes('SUAT-from-oauth'));
+});
+
+test('one person cannot trigger endless automated replies', async () => {
+  assert.equal((await call('PUT', '/api/settings', { contact_hourly_limit: 2 })).status, 200);
+  await call('POST', '/api/rules', { name: 'Anything', trigger_type: 'dm', match_mode: 'any', reply_text: 'auto', cooldown_minutes: 0 });
+  const before = sends().filter((c) => c.body.recipient.id === 'LOOPBOT').length;
+  for (let i = 0; i < 5; i++) await webhook(dm(`hello ${i}`, `mid.loop${i}`, {}, 'LOOPBOT'));
+  await until(() => sends().filter((c) => c.body.recipient.id === 'LOOPBOT').length >= before + 2, 'first two replies');
+  await new Promise((r) => setTimeout(r, 800));
+  assert.equal(sends().filter((c) => c.body.recipient.id === 'LOOPBOT').length, before + 2);
+});
+
+test('a block reported by Instagram (368) switches automation off', async () => {
+  blockSends = true;
+  await webhook(dm('hi there', 'mid.block1', {}, 'BLOCKED1'));
+  await until(async () => (await call('GET', '/api/settings')).json.automation_enabled === 0, 'automation switched off');
+  blockSends = false;
+  const logs = (await call('GET', '/api/logs')).json as { message: string }[];
+  assert.ok(logs.some((l) => /temporarily blocked/i.test(l.message)));
 });

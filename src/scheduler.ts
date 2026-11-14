@@ -1,5 +1,5 @@
 import { db, log, prune } from './db.js';
-import { acct, checkTokenExpiry, connected, ig } from './instagram.js';
+import { acct, checkTokenExpiry, connected, ig, type IgError } from './instagram.js';
 
 export interface PostMedia {
   url: string;
@@ -68,8 +68,44 @@ export async function publish(post: Post): Promise<string> {
   }
 
   await waitUntilReady(containerId);
-  const published = await ig.post<{ id: string }>(`${acct()}/media_publish`, { creation_id: containerId });
-  return published.id;
+  return publishContainer(containerId, post.caption);
+}
+
+const PUBLISH_RETRY_MS = Number(process.env.PUBLISH_RETRY_MS ?? 5_000);
+
+/**
+ * A container can only be published once, so retrying media_publish is safe: if an earlier attempt that looked
+ * like a failure (timeout, reset) actually went through, Instagram refuses the second one. Before every retry the
+ * container is checked, so a post that did publish is recorded as published instead of failed.
+ * Returns '' when the post is live but its media id could not be found (e.g. stories).
+ */
+async function publishContainer(containerId: string, caption: string): Promise<string> {
+  let last: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt) await sleep(PUBLISH_RETRY_MS * attempt);
+    try {
+      return (await ig.post<{ id: string }>(`${acct()}/media_publish`, { creation_id: containerId })).id;
+    } catch (e) {
+      last = e;
+      const status = await ig.get<{ status_code?: string }>(`/${containerId}`, { fields: 'status_code' }).catch(() => null);
+      if (status?.status_code === 'PUBLISHED') return findPublishedId(caption);
+      const err = e as IgError;
+      if (!err.ambiguous && !err.transient) throw e;
+    }
+  }
+  throw last;
+}
+
+/** Match on caption so another recent post is never mistaken for this one; with no caption nothing is stored. */
+async function findPublishedId(caption: string): Promise<string> {
+  if (!caption.trim()) return '';
+  try {
+    const r = await ig.get<{ data?: { id: string; caption?: string; timestamp?: string }[] }>(`${acct()}/media`, { fields: 'id,caption,timestamp', limit: 5 });
+    const hit = (r.data ?? []).find((m) => m.caption === caption && m.timestamp && Date.now() - Date.parse(m.timestamp) < 15 * 60_000);
+    return hit?.id ?? '';
+  } catch {
+    return '';
+  }
 }
 
 async function runPost(post: Post): Promise<void> {
@@ -78,7 +114,7 @@ async function runPost(post: Post): Promise<void> {
   if (!claimed.changes) return;
   try {
     const id = await publish(post);
-    db.prepare("UPDATE posts SET status = 'published', ig_media_id = ?, published_at = ? WHERE id = ?").run(id, Date.now(), post.id);
+    db.prepare("UPDATE posts SET status = 'published', ig_media_id = ?, published_at = ? WHERE id = ?").run(id || null, Date.now(), post.id);
     log('info', `Published scheduled ${post.type.toLowerCase()} post #${post.id}`);
   } catch (e) {
     db.prepare("UPDATE posts SET status = 'failed', error = ? WHERE id = ?").run((e as Error).message, post.id);
