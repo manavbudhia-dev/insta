@@ -154,6 +154,7 @@ test('Unified Login OAuth: dialog URL, state check, code exchange with the Meta 
   assert.equal(dialog.origin + dialog.pathname, 'https://www.facebook.com/dialog/oauth');
   assert.equal(dialog.searchParams.get('client_id'), '123');
   assert.equal(dialog.searchParams.get('config_id'), 'CFG9');
+  assert.equal(dialog.searchParams.get('override_default_response_type'), 'true');
   assert.equal(dialog.searchParams.get('response_type'), 'code');
   assert.equal(dialog.searchParams.get('redirect_uri'), `${APP}/auth/instagram/callback`);
   assert.equal(dialog.searchParams.get('scope'), null, 'permissions come from the configuration, not the URL');

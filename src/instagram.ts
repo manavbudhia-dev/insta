@@ -114,6 +114,8 @@ export function authorizeUrl(state: string): string {
   u.searchParams.set('config_id', config.metaConfigId);
   u.searchParams.set('redirect_uri', redirectUri());
   u.searchParams.set('response_type', 'code');
+  // Same as the Login URL Meta generates: make sure we get an authorization code, whatever the configuration default is.
+  u.searchParams.set('override_default_response_type', 'true');
   u.searchParams.set('prompt', 'login');
   u.searchParams.set('state', state);
   return u.toString();
