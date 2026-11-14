@@ -290,7 +290,14 @@
   }
 
   const reload = () => route();
-  const doResub = async () => { await api('/account/subscribe', { method: 'POST' }); toast('Subscribed'); reload(); };
+  const doResub = async () => {
+    try {
+      await api('/account/subscribe', { method: 'POST' });
+      toast('Checked with Meta: webhooks are subscribed');
+    } finally {
+      reload();
+    }
+  };
   const doDisconnect = async () => {
     if (!confirm('Disconnect this Instagram account? Automations stop until you reconnect.')) return;
     await api('/account/disconnect', { method: 'POST' });
@@ -309,7 +316,7 @@
       items.push('-');
     }
     items.push({ icon: 'pause', label: chrome.automationEnabled ? 'Pause all automations' : 'Resume automations', onClick: () => setPaused(chrome.automationEnabled) });
-    items.push({ icon: 'refresh', label: 'Re-subscribe webhooks', onClick: doResub });
+    items.push({ icon: 'refresh', label: 'Check webhooks now', onClick: doResub });
     items.push({ icon: 'link', label: 'Reconnect account', href: '/auth/instagram' });
     items.push({ icon: 'trash', label: 'Disconnect', danger: true, onClick: doDisconnect });
     popover(anchor, items);
@@ -521,13 +528,27 @@
     const tokenNote = daysLeft === null ? 'The access token does not expire.' : daysLeft < 0 ? 'The access token has EXPIRED — reconnect.' : `The access token is valid for ${daysLeft} more days — reconnect before then.`;
     const metaReady = c.appId && c.appSecret && c.configId;
     const webhookSeen = s.health.lastWebhookAt > 0;
+    const wh = a?.webhooks;
+    const app = wh?.app;
+    const appMissing = app?.found ? wh.expected.filter((f) => !app.fields.includes(f)) : [];
+    const appOk = !!(app?.found && app.active && app.callbackUrl === c.webhookUrl && !appMissing.length);
+    const checked = wh?.checkedAt ? `Checked with Meta ${ago(wh.checkedAt)}.` : 'Checking with Meta…';
+    const appBody = () => {
+      if (!app) return '<p class="muted">Checking your Meta app\'s webhook settings…</p>';
+      if (!app.checked) return `<p class="muted">Could not read your Meta app's webhook settings: ${esc(app.error || 'unknown error')}</p>`;
+      if (!app.found) return `<p class="error">No Instagram webhook is set up in your Meta app yet.</p>
+        <p class="muted">In the Meta dashboard open <i>API setup with Unified login → Configure webhooks</i>, paste the callback URL <code>${esc(c.webhookUrl)}</code> and your verify token, click <b>Verify and save</b>, then switch on ${wh.expected.map((f) => `<code>${esc(f)}</code>`).join(' ')}. Meta only lets you do this part in its dashboard.</p>`;
+      return `<p>${app.callbackUrl === c.webhookUrl ? `Callback URL in Meta: <code>${esc(app.callbackUrl)}</code> ✓` : `<span class="error">Callback URL in Meta is <code>${esc(app.callbackUrl || 'empty')}</code> but should be <code>${esc(c.webhookUrl)}</code>.</span>`}</p>
+        <p>${appMissing.length ? `<span class="error">Switch on these fields in Meta: ${appMissing.map((f) => `<code>${esc(f)}</code>`).join(' ')}</span>` : `Fields switched on in Meta: ${app.fields.map((f) => `<code>${esc(f)}</code>`).join(' ')}`}</p>
+        ${app.active ? '' : '<p class="error">Meta reports this webhook as inactive. Open Configure webhooks and click Verify and save again.</p>'}`;
+    };
     const upcoming = ov.upcoming;
     const refreshAfter = () => reload();
 
     const steps = [
       { t: 'Connect your Instagram account', ok: !!a, body: () => a
           ? `<p>Connected as <b>@${esc(a.username)}</b> · ${num(a.followers)} followers.</p><p class="muted">${tokenNote}</p>
-             <div class="row"><button class="btn" id="d-resub" type="button">Re-subscribe webhooks</button><a class="btn" href="/auth/instagram">Reconnect</a><button class="btn danger" id="d-disc" type="button">Disconnect</button></div>`
+             <div class="row"><button class="btn" id="d-resub" type="button">Check webhooks</button><a class="btn" href="/auth/instagram">Reconnect</a><button class="btn danger" id="d-disc" type="button">Disconnect</button></div>`
           : '<p>No Instagram account is connected yet.</p><a class="btn primary" href="/auth/instagram">Connect Instagram account</a>' },
       { t: 'Configure Meta App & permissions', ok: !!metaReady, body: () => `<p>${metaReady ? 'Meta app ID, app secret and login configuration ID are set.' : 'Set <code>META_APP_ID</code>, <code>META_APP_SECRET</code> and <code>META_CONFIG_ID</code> in <code>.env</code>, then restart.'}</p>
           <p class="muted">Login configuration permissions:</p><div class="row">${c.permissions.map((p) => `<code>${esc(p)}</code>`).join(' ')}</div>
@@ -535,14 +556,18 @@
       { t: 'Set webhook callback URL', ok: !!(c.verifyToken && c.https), body: () => `<p>Callback URL: <code>${esc(c.webhookUrl)}</code></p>
           <p>${c.verifyToken ? 'The verify token from <code>.env</code> is set — paste the same value into Meta.' : 'Set <code>WEBHOOK_VERIFY_TOKEN</code> in <code>.env</code>, then restart.'}</p>
           <p>${c.https ? 'Public HTTPS address: <code>' + esc(c.baseUrl) + '</code>' : 'Meta requires https. Set <code>BASE_URL</code> to your public https address.'}</p>` },
-      { t: 'Add account to webhooks', ok: !!(a && a.webhooksSubscribed), body: () => a
-          ? `<p>${a.webhooksSubscribed ? `Subscribed to: <code>${esc(a.webhooksSubscribed)}</code>` : 'This account is not subscribed to webhooks yet.'}</p><button class="btn" id="d-resub" type="button">Re-subscribe webhooks</button>`
+      { t: 'Account subscribed to webhooks', ok: !!wh?.ok, body: () => a
+          ? `<p>${wh.ok ? `@${esc(a.username)} is subscribed to ${wh.fields.map((f) => `<code>${esc(f)}</code>`).join(' ')}.` : wh.error ? `<span class="error">Not subscribed yet: ${esc(wh.error)}</span>` : 'Subscribing…'}</p>
+             <p class="muted">${checked} This is automatic: the app subscribes when you connect, re-checks with Meta every 30 minutes (every 5 minutes after a failure), and re-subscribes on its own if anything is missing.</p>
+             <button class="btn" id="d-resub" type="button">${ic('refresh')}Check now</button>`
           : '<p>Connect an Instagram account first.</p>' },
       { t: 'Review privacy policy URL', ok: getAck(), body: () => `<p>Paste this address into the privacy policy field of your Meta app:</p><code>${esc(c.privacyUrl)}</code>
           <div class="row" style="margin-top:16px"><button class="btn ${getAck() ? '' : 'primary'}" id="d-ack" type="button">${getAck() ? 'Mark as not done' : 'Mark as done'}</button></div>` },
-      { t: 'Subscribe to webhooks', ok: webhookSeen, body: () => `<p>${webhookSeen ? `Last webhook received <b>${ago(s.health.lastWebhookAt)}</b>.` : 'No webhook has arrived yet.'}</p>
-          <p class="muted">In the Meta dashboard open <i>API setup with Unified login → Configure webhooks</i>, use the callback URL above and switch the app to <b>Live</b> mode — webhooks are not delivered in Development mode.</p>
-          <p class="${s.health.lastPollError ? 'error' : 'muted'}">${s.health.lastPollError ? 'Comment polling error: ' + esc(s.health.lastPollError) : `Comment check last ran ${ago(s.health.lastPollAt)}${s.health.lastCommentWebhookAt ? ' · comment webhooks are also arriving' : ''}.`}</p>` },
+      { t: 'Webhooks set up in Meta', ok: appOk || webhookSeen, body: () => `${a ? appBody() : '<p>Connect an Instagram account first.</p>'}
+          <p>${webhookSeen ? `Last webhook received <b>${ago(s.health.lastWebhookAt)}</b>.` : 'No real webhook has arrived yet.'}</p>
+          <p class="muted">Meta only sends real messages and comments to apps in <b>Live</b> mode (top of the Meta dashboard). In Development mode only the dashboard's test button reaches your server.</p>
+          <p class="${s.health.lastPollError ? 'error' : 'muted'}">${s.health.lastPollError ? 'Comment polling error: ' + esc(s.health.lastPollError) : `Comment check last ran ${ago(s.health.lastPollAt)}${s.health.lastCommentWebhookAt ? ' · comment webhooks are also arriving' : ''}.`}</p>
+          ${a ? `<button class="btn" id="d-resub" type="button">${ic('refresh')}Check now</button>` : ''}` },
       { t: 'Run a test DM from another account', ok: ov.sent.value > 0, body: () => `<p>${ov.sent.value > 0 ? `An automation reply was sent in the last ${ov.days} days — it works.` : 'Send your account a DM from a different Instagram account whose text matches one of your automations.'}</p>
           <p class="muted">The Overview then shows the message under <i>Recent Activity</i>. The account must have messaged you in the last 24 hours before you can reply by hand.</p>` },
     ];

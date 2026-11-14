@@ -24,6 +24,11 @@ let commentsCount = 0;
 let failNextSend = 0;
 let blockSends = false;
 let assigned: any[] = [{ id: OWN_ID, username: 'myshop' }];
+// Like Meta: remembers which fields each account is subscribed to, and the app-level Instagram webhook settings.
+const subs: Record<string, string[]> = {};
+let failSubscribe = false;
+let appHook: any = { object: 'instagram', callback_url: 'http://127.0.0.1:34801/webhook', active: true,
+  fields: [{ name: 'messages', version: 'v27.0' }, { name: 'messaging_postbacks', version: 'v27.0' }, { name: 'comments', version: 'v27.0' }] };
 
 const mock = http.createServer((req, res) => {
   let raw = '';
@@ -45,7 +50,19 @@ const mock = http.createServer((req, res) => {
     if (p === '/me' && req.method === 'GET') return send(200, { id: '999', client_business_id: 'BIZ1' });
     if (p === '/me/assigned_instagram_accounts') return send(200, { data: assigned });
     if (p === `/${OWN_ID}` || p === '/17840000000000002') return send(200, { username: p === `/${OWN_ID}` ? 'myshop' : 'secondshop', name: 'My Shop', followers_count: 1234 });
-    if (/^\/\d+\/subscribed_apps$/.test(p)) return send(200, { success: true });
+    if (/^\/\d+\/subscribed_apps$/.test(p)) {
+      const id = p.split('/')[1];
+      if (req.method === 'POST') {
+        if (failSubscribe) return send(400, { error: { message: 'Simulated subscribe failure', code: 100 } });
+        subs[id] = (url.searchParams.get('subscribed_fields') ?? '').split(',').filter(Boolean);
+        return send(200, { success: true });
+      }
+      return send(200, { data: subs[id] ? [{ id: '123', name: 'autopilot', subscribed_fields: subs[id] }] : [] });
+    }
+    if (p === '/123/subscriptions') {
+      if (url.searchParams.get('access_token') !== `123|${SECRET}`) return send(400, { error: { message: 'bad app token', code: 190 } });
+      return send(200, { data: appHook ? [appHook] : [] });
+    }
     if (p === '/me/messages' || p === '/me/media' || p === '/me/media_publish') return send(400, { error: { message: 'mock: /me is not the Instagram account', code: 100 } });
     if (p === `/${OWN_ID}/messages`) {
       if (blockSends) return send(400, { error: { message: 'Temporarily blocked', code: 368 } });
@@ -107,6 +124,7 @@ before(async () => {
       META_APP_ID: '123', META_APP_SECRET: SECRET, META_CONFIG_ID: 'CFG9', WEBHOOK_VERIFY_TOKEN: 'verify-me',
       GRAPH_BASE: `http://127.0.0.1:${MOCK_PORT}`,
       QUEUE_TICK_MS: '100', SEND_GAP_MS: '10', SCHEDULER_TICK_MS: '200', CONTAINER_POLL_MS: '50',
+      WEBHOOK_RECHECK_MS: '600', WEBHOOK_WATCH_DELAY_MS: '100',
     },
     stdio: ['ignore', 'inherit', 'inherit'],
   });
@@ -142,11 +160,42 @@ test('connecting with a token loads the account and subscribes to webhooks', asy
   const s = (await call('GET', '/api/status')).json;
   assert.equal(s.account.username, 'myshop');
   assert.equal(s.account.webhooksSubscribed, 'messages,messaging_postbacks,comments');
-  const sub = calls.find((c) => c.path === `/${OWN_ID}/subscribed_apps`)!;
+  const sub = calls.find((c) => c.method === 'POST' && c.path === `/${OWN_ID}/subscribed_apps`)!;
   assert.equal(sub.auth, 'Bearer IGAA-test-token-1234567890');
   assert.equal(sub.query.subscribed_fields, 'messages,messaging_postbacks,comments');
   assert.equal(s.account.id, OWN_ID);
   assert.equal(s.account.tokenExpiresAt, 0);
+  assert.equal(s.account.webhooks.ok, true);
+  assert.ok(s.account.webhooks.checkedAt > 0, 'the subscription was confirmed with Meta');
+  assert.deepEqual(s.account.webhooks.app, { checked: true, found: true, callbackUrl: `${APP}/webhook`, active: true, fields: ['messages', 'messaging_postbacks', 'comments'] });
+});
+
+test('a webhook subscription Meta dropped is repaired automatically, and failures are retried', async () => {
+  const status = async () => (await call('GET', '/api/status')).json.account.webhooks;
+  subs[OWN_ID] = ['messages']; // Meta lost two of the fields
+  await until(async () => subs[OWN_ID].length === 3, 'automatic re-subscribe');
+  assert.deepEqual(subs[OWN_ID], ['messages', 'messaging_postbacks', 'comments']);
+  await until(async () => (await status()).ok, 'status shows subscribed again');
+
+  delete subs[OWN_ID]; // dropped completely, and the first attempts to fix it fail
+  failSubscribe = true;
+  const broken = await until(async () => { const w = await status(); return w.error ? w : null; }, 'failure recorded');
+  assert.equal(broken.ok, false);
+  assert.match(broken.error, /Simulated subscribe failure/);
+  const manual = await call('POST', '/api/account/subscribe');
+  assert.equal(manual.status, 400, 'Check now reports the real error');
+  failSubscribe = false;
+  await until(async () => (await status()).ok, 'retried until it worked');
+  const logs = (await call('GET', '/api/logs')).json.map((l: any) => l.message).join('\n');
+  assert.match(logs, /re-subscribed automatically/);
+  assert.match(logs, /working again/);
+
+  // Wrong callback URL in the Meta dashboard is reported, not hidden.
+  appHook = { ...appHook, callback_url: 'https://old.example.com/webhook' };
+  const ok = await call('POST', '/api/account/subscribe');
+  assert.equal(ok.status, 200);
+  assert.equal(ok.json.app.callbackUrl, 'https://old.example.com/webhook');
+  appHook = { ...appHook, callback_url: `${APP}/webhook` };
 });
 
 test('Unified Login OAuth: dialog URL, state check, code exchange with the Meta app secret', async () => {

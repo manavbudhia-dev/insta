@@ -8,7 +8,7 @@ import { config, PERMISSIONS } from './config.js';
 import { db, DEFAULTS, getSetting, log, opt, redact, setSetting } from './db.js';
 import { clip, parseRule } from './engine.js';
 import { getFlow, GraphError, sanitizeGraph, validateGraph, type Graph } from './flows.js';
-import { accounts, connected, disconnect, IgError, saveToken, selectAccount, subscribeWebhooks } from './instagram.js';
+import { accounts, connected, disconnect, ensureWebhooks, IgError, saveToken, selectAccount, webhookState } from './instagram.js';
 import { pollOnce } from './poller.js';
 import { enqueue, windowOpen } from './queue.js';
 
@@ -42,6 +42,9 @@ function h(fn: (req: Request, res: Response) => unknown) {
 
 api.get('/status', h(() => {
   const now = Date.now();
+  // Opening the dashboard also re-checks a subscription that has not been verified for a while (in the background).
+  const wh = webhookState();
+  if (connected() && now - wh.checkedAt > 10 * 60_000) void ensureWebhooks('check');
   const day = now - 86400_000;
   const count = (sql: string, ...args: unknown[]) => (db.prepare(sql).get(...args) as { n: number }).n;
   return {
@@ -65,6 +68,7 @@ api.get('/status', h(() => {
           followers: Number(getSetting('ig_followers', '0')),
           tokenExpiresAt: Number(getSetting('ig_token_expires_at', '0')),
           webhooksSubscribed: getSetting('webhooks_subscribed'),
+          webhooks: wh,
           id: getSetting('ig_user_id'),
           accounts: accounts(),
         }
@@ -203,7 +207,10 @@ api.post('/account/select', h(async (req) => {
 }));
 api.post('/account/subscribe', h(async () => {
   if (!connected()) bad('Connect an Instagram account first');
-  await subscribeWebhooks();
+  await ensureWebhooks('manual');
+  const s = webhookState();
+  if (!s.ok) bad(s.error || 'Meta did not confirm the subscription');
+  return s;
 }));
 
 // ---------- rules ----------

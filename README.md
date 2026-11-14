@@ -127,9 +127,12 @@ Caddy fetches the HTTPS certificate automatically. Open <https://insta.zealcoder
 3. In the DM Autopilot dashboard, click **Connect Instagram account**. Sign in with Instagram or Facebook, choose your
    business portfolio, tick your Instagram account, and approve the permissions.
    (Alternative: paste the token from *Generate access tokens* into the dashboard.)
+   The app then subscribes your account to webhooks by itself. It re-checks with Meta every 30 minutes and re-subscribes
+   automatically if Meta ever drops it, so there is nothing to click. Only step 1 has to be done by hand: Meta allows
+   the callback URL to be set only in its dashboard. The checklist reads those settings back and tells you if anything there is wrong.
 4. If you signed in with Facebook, turn on **Allow access to messages** in the Instagram app:
    Settings → Messages and story replies → Message controls → Connected tools. (Signing in with Instagram asks for this during login.)
-5. Send your account a DM from a different account. Open the Setup checklist on Overview: "Subscribe to webhooks" turns green and Recent Activity lists the DM.
+5. Send your account a DM from a different account. Open the Setup checklist on Overview: "Webhooks set up in Meta" turns green and Recent Activity lists the DM.
 
 ### About comment triggers and App Review
 
@@ -190,8 +193,9 @@ The token also stops working if you remove the app from your business portfolio 
 - **"This token has no Instagram account assigned":** connect again and tick your Instagram account on the asset screen.
   If it is not listed, the account is personal (switch to Business/Creator) or sits in a different business portfolio.
 - **"(#200) The account owner has disabled access to Instagram Direct Messaging":** turn on *Allow access to messages* (step 5.4).
-- **No webhooks arriving:** app not in Live mode, account not subscribed (account menu (top right) → Re-subscribe webhooks),
-  or "Allow access to messages" is off in the Instagram app.
+- **No webhooks arriving:** the app is not in Live mode, the callback URL or fields in the Meta dashboard are wrong (the
+  "Webhooks set up in Meta" checklist step shows which), or "Allow access to messages" is off in the Instagram app.
+  The account subscription is automatic; "Check now" in the checklist re-checks it immediately and shows Meta's error if it fails.
 - **Reply shows "skipped – outside the 24-hour window":** the person's last message is older than 24 hours. This is Meta's rule.
 - **Scheduled post failed:** the media URL must be publicly reachable over HTTPS, images must be JPEG
   (uploads are converted for you), reels must be MP4/MOV. The error from Instagram is shown on the post.

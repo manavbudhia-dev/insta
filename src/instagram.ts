@@ -7,7 +7,7 @@
  */
 import crypto from 'node:crypto';
 import { config, WEBHOOK_FIELDS } from './config.js';
-import { db, delSetting, getSetting, log, setSetting } from './db.js';
+import { db, delSetting, getSetting, log, redact, setSetting } from './db.js';
 import { isSealed, open as openSecret, seal } from './vault.js';
 
 export class IgError extends Error {
@@ -235,9 +235,11 @@ export async function selectAccount(id: string): Promise<void> {
     setSetting('connected_at', Date.now());
     db.prepare("UPDATE outbox SET status = 'skipped', error = 'Instagram account was switched before this was sent' WHERE status = 'pending'").run();
   }
+  if (getSetting('ig_user_id') !== account.id) {
+    for (const k of ['webhooks_subscribed', 'webhooks_checked_at', 'webhooks_error']) delSetting(k);
+  }
   setSetting('ig_user_id', account.id);
   setSetting('ig_username', account.username);
-  delSetting('webhooks_subscribed');
   for (const k of ['ig_name', 'ig_picture', 'ig_followers']) delSetting(k);
   try {
     const p = await ig.get<any>(acct(), { fields: 'username,name,profile_picture_url,followers_count' });
@@ -249,18 +251,116 @@ export async function selectAccount(id: string): Promise<void> {
     /* profile details are cosmetic */
   }
   log('info', `Connected Instagram account @${getSetting('ig_username')}`);
-  await subscribeWebhooks().catch((e) => log('warn', `Webhook subscription failed: ${e.message}`));
+  await ensureWebhooks('connect');
 }
 
-export async function subscribeWebhooks(): Promise<void> {
-  await ig.post(`${acct()}/subscribed_apps`, undefined, { subscribed_fields: WEBHOOK_FIELDS.join(',') });
-  setSetting('webhooks_subscribed', WEBHOOK_FIELDS.join(','));
-  log('info', `Subscribed account to webhooks: ${WEBHOOK_FIELDS.join(', ')}`);
+// ---------- webhook subscription: checked with Meta and repaired automatically ----------
+
+const fieldNames = (list: unknown): string[] =>
+  (Array.isArray(list) ? list : []).map((f: any) => (typeof f === 'string' ? f : f?.name)).filter(Boolean);
+
+/**
+ * The fields this account is subscribed to for our app, as Meta reports them.
+ * null means Meta's answer could not be read (we then rely on the subscribe call itself).
+ */
+async function readSubscription(): Promise<string[] | null> {
+  let res: any;
+  try {
+    res = await ig.get(`${acct()}/subscribed_apps`);
+  } catch (e) {
+    if ((e as IgError).authFailure) throw e;
+    return null;
+  }
+  if (!Array.isArray(res?.data)) return null;
+  const mine = res.data.find((d: any) => String(d?.id) === config.metaAppId) ?? (res.data.length === 1 ? res.data[0] : undefined);
+  return mine ? fieldNames(mine.subscribed_fields) : [];
+}
+
+/**
+ * The app-level webhook settings (callback URL and fields) can only be changed in the Meta dashboard,
+ * but they can be read with the app's own token, so the dashboard can say whether they are right.
+ */
+async function readAppSubscription(): Promise<void> {
+  if (!config.metaAppId || !config.metaAppSecret) return void delSetting('app_webhook');
+  try {
+    const res = await request<{ data?: any[] }>('GET', `/${config.metaAppId}/subscriptions`, {
+      query: { access_token: `${config.metaAppId}|${config.metaAppSecret}` },
+      accessToken: null,
+    });
+    const s = (res.data ?? []).find((x) => x?.object === 'instagram');
+    setSetting('app_webhook', JSON.stringify({
+      checked: true, found: !!s, callbackUrl: s?.callback_url ?? '', active: !!s?.active, fields: fieldNames(s?.fields),
+    }));
+  } catch (e) {
+    setSetting('app_webhook', JSON.stringify({ checked: false, error: redact((e as Error).message) }));
+  }
+}
+
+async function doEnsure(reason: 'connect' | 'check' | 'manual'): Promise<void> {
+  if (!connected()) return;
+  try {
+    let fields = await readSubscription();
+    const missing = () => WEBHOOK_FIELDS.filter((f) => !(fields ?? []).includes(f));
+    if (fields === null || missing().length) {
+      const before = fields === null ? 'unknown' : missing().join(', ');
+      await ig.post(`${acct()}/subscribed_apps`, undefined, { subscribed_fields: WEBHOOK_FIELDS.join(',') });
+      fields = (await readSubscription()) ?? [...WEBHOOK_FIELDS];
+      if (missing().length) throw new Error(`Meta accepted the request but still lists these fields as unsubscribed: ${missing().join(', ')}`);
+      if (reason === 'connect') log('info', `Subscribed @${getSetting('ig_username')} to webhooks: ${WEBHOOK_FIELDS.join(', ')}`);
+      else if (before !== 'unknown') log('warn', `Webhook subscription was missing ${before}; re-subscribed automatically`);
+    }
+    if (getSetting('webhooks_error')) log('info', 'Webhook subscription is working again');
+    setSetting('webhooks_subscribed', fields.join(','));
+    setSetting('webhooks_error', '');
+  } catch (e) {
+    const msg = redact((e as Error).message);
+    if (getSetting('webhooks_error') !== msg) log('warn', `Could not subscribe the account to webhooks (retrying automatically): ${msg}`);
+    setSetting('webhooks_error', msg);
+  }
+  setSetting('webhooks_checked_at', Date.now());
+  await readAppSubscription();
+}
+
+let ensuring: Promise<void> | null = null;
+/** Check the account's webhook subscription with Meta and fix it if anything is missing. Safe to call often. */
+export function ensureWebhooks(reason: 'connect' | 'check' | 'manual' = 'check'): Promise<void> {
+  ensuring ??= doEnsure(reason).finally(() => { ensuring = null; });
+  return ensuring;
+}
+
+export interface WebhookState {
+  fields: string[]; expected: string[]; ok: boolean; checkedAt: number; error: string;
+  app: null | { checked: boolean; found?: boolean; callbackUrl?: string; active?: boolean; fields?: string[]; error?: string };
+}
+export function webhookState(): WebhookState {
+  const fields = getSetting('webhooks_subscribed').split(',').filter(Boolean);
+  let app = null;
+  try {
+    app = JSON.parse(getSetting('app_webhook', 'null'));
+  } catch {
+    /* ignore */
+  }
+  return {
+    fields, expected: [...WEBHOOK_FIELDS], ok: WEBHOOK_FIELDS.every((f) => fields.includes(f)) && !getSetting('webhooks_error'),
+    checkedAt: Number(getSetting('webhooks_checked_at', '0')), error: getSetting('webhooks_error'), app,
+  };
+}
+
+/** Re-check every 30 minutes, or every 5 minutes while the last attempt failed. */
+export function startWebhookWatch(): void {
+  const recheck = Number(process.env.WEBHOOK_RECHECK_MS ?? 30 * 60_000);
+  const due = () => {
+    const age = Date.now() - Number(getSetting('webhooks_checked_at', '0'));
+    return age > recheck || (!!getSetting('webhooks_error') && age > recheck / 6);
+  };
+  setTimeout(() => void ensureWebhooks('check'), Number(process.env.WEBHOOK_WATCH_DELAY_MS ?? 8000)).unref();
+  setInterval(() => { if (due()) void ensureWebhooks('check'); }, Math.min(60_000, Math.max(50, recheck / 6))).unref();
 }
 
 export function disconnect(): void {
   for (const k of ['ig_token', 'ig_token_saved_at', 'ig_token_expires_at', 'ig_user_id', 'ig_accounts', 'client_business_id',
-    'ig_username', 'ig_name', 'ig_picture', 'ig_followers', 'webhooks_subscribed', 'connected_at']) {
+    'ig_username', 'ig_name', 'ig_picture', 'ig_followers', 'webhooks_subscribed', 'webhooks_checked_at', 'webhooks_error',
+    'app_webhook', 'connected_at']) {
     delSetting(k);
   }
   log('info', 'Instagram account disconnected');
