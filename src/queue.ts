@@ -1,5 +1,6 @@
 import { config } from './config.js';
 import { db, log, opt, redact, setSetting } from './db.js';
+import { moveRuns } from './flows.js';
 import { connected, IgError, replyToComment, sendDm, sendPrivateReply } from './instagram.js';
 
 export const WINDOW_MS = 24 * 3600_000;
@@ -13,6 +14,8 @@ interface Job {
   payload: string;
   preview: string | null;
   rule_id: number | null;
+  flow_id: number | null;
+  ignore_pause: number;
   source: string;
   attempts: number;
   created_at: number;
@@ -20,14 +23,14 @@ interface Job {
 
 export function enqueue(job: {
   kind: Job['kind']; target: string; igsid?: string; payload: unknown; preview?: string;
-  ruleId?: number | null; source?: 'auto' | 'manual';
+  ruleId?: number | null; flowId?: number | null; source?: 'auto' | 'manual';
 }): number {
   const now = Date.now();
   const r = db
     .prepare(
-      'INSERT INTO outbox (kind, target, igsid, payload, preview, rule_id, source, next_attempt_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO outbox (kind, target, igsid, payload, preview, rule_id, flow_id, source, next_attempt_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     )
-    .run(job.kind, job.target, job.igsid ?? null, JSON.stringify(job.payload), job.preview ?? null, job.ruleId ?? null, job.source ?? 'auto', now, now);
+    .run(job.kind, job.target, job.igsid ?? null, JSON.stringify(job.payload), job.preview ?? null, job.ruleId ?? null, job.flowId ?? null, job.source ?? 'auto', now, now);
   return Number(r.lastInsertRowid);
 }
 
@@ -70,7 +73,7 @@ async function process(job: Job): Promise<void> {
     finish.run('skipped', 'Comment is older than 7 days', null, job.id);
     return;
   }
-  if (job.source === 'auto' && job.kind === 'dm') {
+  if (job.source === 'auto' && job.kind === 'dm' && !job.ignore_pause) {
     // The owner may have taken over the chat while this reply was waiting in the queue.
     const c = db.prepare('SELECT paused_until FROM contacts WHERE igsid = ?').get(job.target) as { paused_until: number } | undefined;
     if (c && c.paused_until > Date.now()) {
@@ -93,11 +96,12 @@ async function process(job: Job): Promise<void> {
         // The reply reveals the commenter's messaging ID; carry their username over to it.
         const prev = db.prepare('SELECT username FROM contacts WHERE igsid = ?').get(job.igsid) as { username?: string } | undefined;
         db.prepare('INSERT OR IGNORE INTO contacts (igsid, username, first_seen) VALUES (?, ?, ?)').run(res.recipient_id, prev?.username ?? null, now);
+        if (job.igsid) moveRuns(job.igsid, res.recipient_id); // a flow waiting on this commenter follows them
       }
       db.prepare('UPDATE contacts SET last_outbound_at = ? WHERE igsid = ?').run(now, igsid);
       db.prepare(
-        'INSERT OR IGNORE INTO messages (igsid, direction, kind, text, mid, rule_id, source, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      ).run(igsid, 'out', job.kind, job.preview, res.message_id ?? res.id ?? null, job.rule_id, job.source, now);
+        'INSERT OR IGNORE INTO messages (igsid, direction, kind, text, mid, rule_id, flow_id, source, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      ).run(igsid, 'out', job.kind, job.preview, res.message_id ?? res.id ?? null, job.rule_id, job.flow_id, job.source, now);
     }
   } catch (e) {
     const err = e as IgError;

@@ -118,16 +118,63 @@ CREATE TABLE IF NOT EXISTS logs (
   created_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS flows (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 0,
+  graph TEXT NOT NULL,                -- {nodes:[{id,type,x,y,data}], edges:[{id,from,port,to}]}
+  trigger_type TEXT NOT NULL DEFAULT 'dm',
+  priority INTEGER NOT NULL DEFAULT 0,
+  runs INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS flow_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  flow_id INTEGER NOT NULL,
+  igsid TEXT NOT NULL,
+  status TEXT NOT NULL,               -- running | waiting | done | expired | cancelled | failed
+  node_id TEXT,
+  wait TEXT,                          -- reply | delay
+  resume_at INTEGER,
+  expires_at INTEGER,
+  vars TEXT NOT NULL DEFAULT '{}',
+  comment_id TEXT,
+  private_sent INTEGER NOT NULL DEFAULT 0,
+  last_text TEXT NOT NULL DEFAULT '',
+  steps INTEGER NOT NULL DEFAULT 0,
+  started_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_runs_contact ON flow_runs(igsid, status);
+CREATE INDEX IF NOT EXISTS idx_runs_due ON flow_runs(status, resume_at);
+CREATE INDEX IF NOT EXISTS idx_runs_flow ON flow_runs(flow_id, igsid, started_at);
+
+CREATE TABLE IF NOT EXISTS flow_stats (
+  flow_id INTEGER NOT NULL,
+  node_id TEXT NOT NULL,
+  hits INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (flow_id, node_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_messages_dir ON messages(direction, created_at);
 CREATE INDEX IF NOT EXISTS idx_outbox_sent ON outbox(status, sent_at);
 CREATE INDEX IF NOT EXISTS idx_contacts_inbound ON contacts(last_inbound_at);
 CREATE INDEX IF NOT EXISTS idx_posts_status ON posts(status, scheduled_at);
 `);
 
-// Existing databases predate this column.
-if (!(db.prepare('PRAGMA table_info(media_cache)').all() as { name: string }[]).some((c) => c.name === 'comments_polled_at')) {
-  db.exec('ALTER TABLE media_cache ADD COLUMN comments_polled_at INTEGER NOT NULL DEFAULT 0');
+// Existing databases predate these columns.
+function addColumn(table: string, column: string, ddl: string): void {
+  if (!(db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
+  }
 }
+addColumn('media_cache', 'comments_polled_at', 'INTEGER NOT NULL DEFAULT 0');
+addColumn('contacts', 'tags', "TEXT NOT NULL DEFAULT '[]'");
+addColumn('outbox', 'flow_id', 'INTEGER');
+addColumn('outbox', 'ignore_pause', 'INTEGER NOT NULL DEFAULT 0');
+addColumn('messages', 'flow_id', 'INTEGER');
 
 const getStmt = db.prepare('SELECT value FROM settings WHERE key = ?');
 const setStmt = db.prepare(

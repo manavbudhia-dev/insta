@@ -1,5 +1,6 @@
 import { db, firstTime, log, opt } from './db.js';
 import { getProfile, isOwnAccount, type IgError } from './instagram.js';
+import { flowCandidates, flowOnCooldown, resumeFromInbound, startRun } from './flows.js';
 import { enqueue, sendsInFlight } from './queue.js';
 
 export type TriggerType = 'dm' | 'comment' | 'story_reply' | 'story_mention' | 'welcome';
@@ -249,7 +250,9 @@ export async function handleMessaging(ev: MessagingEvent): Promise<void> {
   if (up.contact.paused_until > now) return;
 
   const contact = await ensureProfile(up.contact);
-  const rules = activeRules();
+  // A flow that is waiting for this person (or a tapped flow button) gets the message first.
+  if (resumeFromInbound(senderId, text, msg?.quick_reply?.payload ?? ev.postback?.payload)) return;
+  const rules = [...activeRules(), ...flowCandidates()];
   let rule = pickRule(rules, kind, text);
   // A story reply/mention with no dedicated rule falls back to ordinary DM rules.
   if (!rule && kind !== 'dm') rule = pickRule(rules, 'dm', text);
@@ -257,7 +260,14 @@ export async function handleMessaging(ev: MessagingEvent): Promise<void> {
   if (!priorInbound && (!rule || rule.match_mode === 'any')) {
     rule = pickRule(rules, 'welcome', text) ?? rule;
   }
-  if (!rule || onCooldown(rule, senderId) || contactLimited(senderId)) return;
+  if (!rule) return;
+  const flowId = (rule as { flowId?: number }).flowId;
+  if (flowId) {
+    if (flowOnCooldown(flowId, senderId) || contactLimited(senderId)) return;
+    startRun(flowId, senderId, { text });
+    return;
+  }
+  if (onCooldown(rule, senderId) || contactLimited(senderId)) return;
 
   enqueue({
     kind: 'dm', target: senderId, igsid: senderId, ruleId: rule.id,
@@ -314,8 +324,16 @@ export function handleComment(c: CommentEvent): void {
   recordMessage({ igsid: contactId, direction: 'in', kind: 'comment', text: c.text ?? '', mid: `comment:${c.id}`, meta: { mediaId, commentId: c.id } });
 
   if (!opt('automation_enabled')) return;
-  const rule = pickRule(activeRules(), 'comment', c.text ?? '', mediaId);
-  if (!rule || onCooldown(rule, contactId) || contactLimited(contactId)) return;
+  const rule = pickRule([...activeRules(), ...flowCandidates()], 'comment', c.text ?? '', mediaId);
+  if (!rule) return;
+  const flowId = (rule as { flowId?: number }).flowId;
+  if (flowId) {
+    if (flowOnCooldown(flowId, contactId) || contactLimited(contactId)) return;
+    startRun(flowId, contactId, { text: c.text ?? '', commentId: c.id });
+    log('info', `Comment by @${username ?? fromId} started flow "${rule.name}"`);
+    return;
+  }
+  if (onCooldown(rule, contactId) || contactLimited(contactId)) return;
 
   const contact = { username, name: null };
   if (rule.reply_text.trim()) {

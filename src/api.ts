@@ -7,6 +7,7 @@ import sharp from 'sharp';
 import { config, PERMISSIONS } from './config.js';
 import { db, DEFAULTS, getSetting, log, opt, redact, setSetting } from './db.js';
 import { clip, parseRule } from './engine.js';
+import { getFlow, GraphError, sanitizeGraph, validateGraph, type Graph } from './flows.js';
 import { accounts, connected, disconnect, IgError, saveToken, selectAccount, subscribeWebhooks } from './instagram.js';
 import { pollOnce } from './poller.js';
 import { enqueue, windowOpen } from './queue.js';
@@ -274,6 +275,97 @@ api.delete('/rules/:id', h((req) => {
   db.prepare('DELETE FROM rules WHERE id = ?').run(Number(req.params.id));
 }));
 
+// ---------- visual flows ----------
+
+function graphInput(raw: unknown): Graph {
+  try {
+    return sanitizeGraph(raw);
+  } catch (e) {
+    if (e instanceof GraphError) bad(e.message);
+    throw e;
+  }
+}
+const triggerFields = (g: Graph) => {
+  const t = g.nodes.find((n) => n.type === 'trigger');
+  return { trigger_type: t?.data.on ?? 'dm', priority: t?.data.priority ?? 0 };
+};
+function flowStats(id: number) {
+  const hits: Record<string, number> = {};
+  for (const r of db.prepare('SELECT node_id, hits FROM flow_stats WHERE flow_id = ?').all(id) as { node_id: string; hits: number }[]) hits[r.node_id] = r.hits;
+  const runs = Object.fromEntries((db.prepare('SELECT status, COUNT(*) n FROM flow_runs WHERE flow_id = ? GROUP BY status').all(id) as { status: string; n: number }[]).map((r) => [r.status, r.n]));
+  return { hits, runs };
+}
+const flowOut = (row: any) => {
+  const graph: Graph = JSON.parse(row.graph);
+  return { ...row, graph, issues: validateGraph(graph) };
+};
+
+api.get('/flows', h(() =>
+  (db.prepare('SELECT * FROM flows ORDER BY updated_at DESC').all() as any[]).map((row) => {
+    const f = flowOut(row);
+    const active = (db.prepare("SELECT COUNT(*) n FROM flow_runs WHERE flow_id = ? AND status IN ('running','waiting')").get(row.id) as { n: number }).n;
+    const t = f.graph.nodes.find((n: any) => n.type === 'trigger');
+    return { id: f.id, name: f.name, enabled: f.enabled, runs: f.runs, active, updated_at: f.updated_at, steps: f.graph.nodes.length,
+      trigger: t?.data ?? null, errors: f.issues.filter((i: any) => i.level === 'error').length };
+  })));
+api.get('/flows/:id', h((req) => {
+  const row = db.prepare('SELECT * FROM flows WHERE id = ?').get(Number(req.params.id));
+  if (!row) bad('Flow not found');
+  return { ...flowOut(row), stats: flowStats(Number(req.params.id)) };
+}));
+api.post('/flows/validate', h((req) => ({ issues: validateGraph(graphInput(req.body?.graph)) })));
+api.post('/flows', h((req) => {
+  const graph = graphInput(req.body?.graph ?? { nodes: [], edges: [] });
+  const now = Date.now();
+  const name = String(req.body?.name ?? '').trim().slice(0, 80) || 'Untitled flow';
+  const info = db.prepare('INSERT INTO flows (name, enabled, graph, trigger_type, priority, created_at, updated_at) VALUES (?, 0, ?, ?, ?, ?, ?)')
+    .run(name, JSON.stringify(graph), triggerFields(graph).trigger_type, triggerFields(graph).priority, now, now);
+  return { id: Number(info.lastInsertRowid) };
+}));
+api.put('/flows/:id', h((req) => {
+  const id = Number(req.params.id);
+  const current = getFlow(id) ?? bad('Flow not found');
+  const graph = graphInput(req.body?.graph);
+  const issues = validateGraph(graph);
+  const enabled = req.body?.enabled === undefined ? !!current.enabled : !!req.body.enabled;
+  if (enabled && issues.some((i) => i.level === 'error')) {
+    bad(`Fix ${issues.filter((i) => i.level === 'error').length} problem(s) before turning this flow on`);
+  }
+  const name = String(req.body?.name ?? current.name).trim().slice(0, 80) || 'Untitled flow';
+  db.prepare('UPDATE flows SET name = ?, enabled = ?, graph = ?, trigger_type = ?, priority = ?, updated_at = ? WHERE id = ?')
+    .run(name, enabled ? 1 : 0, JSON.stringify(graph), triggerFields(graph).trigger_type, triggerFields(graph).priority, Date.now(), id);
+  // Runs parked on a step that no longer exists cannot continue.
+  const ids = new Set(graph.nodes.map((n) => n.id));
+  for (const r of db.prepare("SELECT id, node_id FROM flow_runs WHERE flow_id = ? AND status IN ('running','waiting')").all(id) as { id: number; node_id: string }[]) {
+    if (!ids.has(r.node_id)) db.prepare("UPDATE flow_runs SET status = 'cancelled' WHERE id = ?").run(r.id);
+  }
+  if (!enabled) db.prepare("UPDATE flow_runs SET status = 'cancelled' WHERE flow_id = ? AND status IN ('running','waiting')").run(id);
+  return { issues, enabled };
+}));
+api.post('/flows/:id/toggle', h((req) => {
+  const f = getFlow(Number(req.params.id)) ?? bad('Flow not found');
+  const errors = validateGraph(f.graph).filter((i) => i.level === 'error');
+  if (!f.enabled && errors.length) bad(`Open the flow and fix ${errors.length} problem(s) before turning it on`);
+  db.prepare('UPDATE flows SET enabled = ?, updated_at = ? WHERE id = ?').run(f.enabled ? 0 : 1, Date.now(), f.id);
+  if (f.enabled) db.prepare("UPDATE flow_runs SET status = 'cancelled' WHERE flow_id = ? AND status IN ('running','waiting')").run(f.id);
+}));
+api.post('/flows/:id/duplicate', h((req) => {
+  const f = getFlow(Number(req.params.id)) ?? bad('Flow not found');
+  const now = Date.now();
+  const info = db.prepare('INSERT INTO flows (name, enabled, graph, trigger_type, priority, created_at, updated_at) VALUES (?, 0, ?, ?, ?, ?, ?)')
+    .run(`${f.name} (copy)`.slice(0, 80), JSON.stringify(f.graph), f.trigger_type, f.priority, now, now);
+  return { id: Number(info.lastInsertRowid) };
+}));
+api.post('/flows/:id/reset-stats', h((req) => {
+  db.prepare('DELETE FROM flow_stats WHERE flow_id = ?').run(Number(req.params.id));
+}));
+api.delete('/flows/:id', h((req) => {
+  const id = Number(req.params.id);
+  db.prepare('DELETE FROM flow_stats WHERE flow_id = ?').run(id);
+  db.prepare('DELETE FROM flow_runs WHERE flow_id = ?').run(id);
+  db.prepare('DELETE FROM flows WHERE id = ?').run(id);
+}));
+
 // ---------- media (for the "limit to one post" picker) ----------
 
 api.get('/media', h(() => db.prepare('SELECT * FROM media_cache ORDER BY timestamp DESC LIMIT 50').all()));
@@ -325,7 +417,8 @@ api.delete('/contacts/:id', h((req) => {
 
 api.get('/outbox', h(() =>
   db.prepare(`SELECT o.id, o.kind, o.target, o.igsid, o.preview, o.status, o.error, o.source, o.created_at, o.sent_at, o.attempts,
-    r.name AS rule_name, c.username FROM outbox o LEFT JOIN rules r ON r.id = o.rule_id LEFT JOIN contacts c ON c.igsid = o.igsid
+    COALESCE(r.name, f.name) AS rule_name, c.username FROM outbox o LEFT JOIN rules r ON r.id = o.rule_id LEFT JOIN flows f ON f.id = o.flow_id
+    LEFT JOIN contacts c ON c.igsid = o.igsid
     ORDER BY o.id DESC LIMIT 200`).all()));
 api.get('/logs', h(() => db.prepare('SELECT * FROM logs ORDER BY id DESC LIMIT 200').all()));
 

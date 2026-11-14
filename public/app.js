@@ -206,7 +206,9 @@
   let chrome = null;
   const PAGES = {
     overview: { icon: 'sun', title: () => `${greeting()}, ${firstName()} 👋`, sub: 'Run your Instagram DM automation, schedule content, and grow conversations.' },
-    rules: { icon: 'flow', title: () => 'Automations', sub: 'Each rule watches for a trigger and sends a reply. The first matching rule wins.' },
+    rules: { icon: 'zap', title: () => 'Automations', sub: 'Each rule watches for a trigger and sends a reply. The first matching rule wins.' },
+    flows: { icon: 'flow', title: () => 'Flows', sub: 'Multi-step conversations built visually: buttons, questions, conditions, delays and tags.' },
+    flow: { icon: 'flow', title: () => 'Flow builder', sub: '' },
     inbox: { icon: 'chat', title: () => 'Inbox', sub: 'Conversations and comments handled by your automations.' },
     posts: { icon: 'calendar', title: () => 'Scheduler', sub: 'Queue photos, carousels, reels and stories. Times are in your local timezone.' },
     activity: { icon: 'activity', title: () => 'Activity', sub: 'Every reply the system queued, and what happened to it.' },
@@ -340,7 +342,8 @@
     const view = views[name] ? name : 'overview';
     const g = ++gen;
     currentView = view;
-    $$('#nav a').forEach((a) => a.classList.toggle('active', a.dataset.view === view));
+    $$('#nav a').forEach((a) => a.classList.toggle('active', a.dataset.view === (view === 'flow' ? 'flows' : view)));
+    document.body.classList.toggle('builder-mode', view === 'flow');
     clearInterval(refreshTimer);
     renderTopbar();
     refreshChrome();
@@ -353,7 +356,17 @@
     }
   }
   const route = debounce(routeNow, 80);
-  window.addEventListener('hashchange', () => { closeModal(); route(); });
+  // A page with unsaved work (the flow builder) can veto leaving it.
+  let lastHash = location.hash;
+  window.addEventListener('hashchange', () => {
+    if (window.DMA?.guard && location.hash !== lastHash && !window.DMA.guard()) {
+      history.replaceState(null, '', lastHash || '#overview');
+      return;
+    }
+    lastHash = location.hash;
+    closeModal();
+    route();
+  });
   setInterval(() => { if (!$('#app').hidden && visible()) refreshChrome(); }, 60000);
   document.addEventListener('visibilitychange', () => { if (visible() && !$('#app').hidden) refreshChrome(); });
 
@@ -986,6 +999,12 @@
       } });
       await refreshChrome(true);
     }, 'Settings saved');
+  };
+
+  // Shared with builder.js, which adds the Flows pages.
+  window.DMA = {
+    $, $$, esc, ic, api, toast, run, debounce, openModal, closeModal, modalHead, popover, closePop, views, main,
+    ago, num, route: () => route(), gen: () => gen, guard: null,
   };
 
   mount();

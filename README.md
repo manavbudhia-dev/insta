@@ -20,6 +20,7 @@ cannot be automated: Meta only allows them by hand. The script tells you every v
 - **Story replies and story mentions** – trigger a DM.
 - **Welcome message** – greet someone the first time they ever message you.
 - **Link buttons and quick replies** in DMs, `{{first_name}}` / `{{username}}` placeholders.
+- **Visual flow builder** – drag-and-drop multi-step conversations on a canvas (see [Flows](#flows)).
 - **Inbox** – see every conversation, reply by hand, pause automation per person.
 - **Human takeover** – if you answer from the Instagram app, automation goes quiet in that chat for a while.
 - **Post scheduler** – photos, carousels, reels and stories, published at the time you pick.
@@ -140,6 +141,33 @@ If you later obtain Advanced Access, comment webhooks start arriving and replies
 DM, story reply and story mention triggers arrive by webhook and are instant.
 
 ---
+
+## Flows
+
+**Flows** (in the sidebar) is a visual builder for conversations with more than one step. Pick a template or start
+blank, drag steps from the left onto the canvas, and pull a wire from a step's dot to the step that should come next.
+Dropping a wire on empty space opens a menu to create and connect a new step there.
+
+| Step | What it does |
+|---|---|
+| Trigger | What starts the flow: a DM keyword, a comment, a story reply or mention, or someone's first message. |
+| Send message | Text with `{{first_name}}`, saved answers like `{{email}}`, up to 3 buttons (open a link, or continue the flow) or up to 13 quick replies. Every button and quick reply gets its own output, plus "Any other reply". |
+| Send image | An uploaded image or video. |
+| Wait for reply | Pauses until they answer, saves the answer, optionally checks it is an email, phone number or number, and can give up after a while. |
+| Condition | Goes "Yes" or "No" based on their last message, a saved answer, or a tag. |
+| Delay | Waits up to 23 hours before the next step. |
+| A/B split | Sends each person down path A or B at random. |
+| Reply to comment | A public reply under the post (comment flows). |
+| Tag contact | Adds or removes a label, for use in conditions. |
+| Hand off to me | Ends the flow and pauses automation for that person so you can reply yourself. |
+
+- **Test** opens a chat preview that runs the flow in your browser; nothing is sent to Instagram.
+- The builder checks the flow as you edit and will not let a broken flow go **Live**. Problems are marked on the steps.
+- Each step shows how many times it has run. Shortcuts: `Del` delete, `Ctrl+Z` undo, `Ctrl+D` duplicate, `Ctrl+S` save, `F` fit to screen, `Ctrl`+scroll or pinch to zoom.
+- Flows and simple automations share the same triggers. If both match a message, the higher priority answers; on a tie the flow wins.
+- When a flow is waiting for someone's answer, their next DM goes to the flow. If the flow has nothing connected for a free-text answer, the simple automations get it instead.
+- Flow messages go through the same queue as everything else, so the 24-hour window, hourly cap, per-person limit and human takeover pause all apply.
+- **Comment flows:** Instagram allows one private reply to a comment, as plain text. Links and choices are written into that message, and the flow continues once the person replies. The builder warns about any message that could not be delivered because of this rule.
 
 ## Day-to-day
 
