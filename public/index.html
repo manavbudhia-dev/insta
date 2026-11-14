@@ -11,6 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/builder.css">
+  <link rel="stylesheet" href="/pages.css">
 </head>
 <body>
   <!-- shared gradients referenced by inline icons -->
@@ -38,12 +39,14 @@
       <a class="brand" href="#overview"><span data-logo></span>DM Autopilot</a>
       <nav id="nav" aria-label="Main">
         <a href="#overview" data-view="overview"><i data-ic="home"></i><span>Overview</span></a>
-        <a href="#rules" data-view="rules"><i data-ic="zap"></i><span>Automations</span></a>
+        <a href="#rules" data-view="rules" data-more><i data-ic="zap"></i><span>Automations</span></a>
         <a href="#flows" data-view="flows"><i data-ic="flow"></i><span>Flows</span></a>
         <a href="#inbox" data-view="inbox"><i data-ic="chat"></i><span>Inbox</span><em class="badge" id="badge" hidden></em></a>
-        <a href="#posts" data-view="posts"><i data-ic="calendar"></i><span>Scheduler</span></a>
-        <a href="#activity" data-view="activity"><i data-ic="activity"></i><span>Activity</span></a>
-        <a href="#settings" data-view="settings"><i data-ic="settings"></i><span>Settings</span></a>
+        <a href="#posts" data-view="posts"><i data-ic="calendar"></i><span>Calendar</span></a>
+        <a href="#insights" data-view="insights"><i data-ic="chart"></i><span>Insights</span></a>
+        <a href="#activity" data-view="activity" data-more><i data-ic="activity"></i><span>Activity</span></a>
+        <a href="#settings" data-view="settings" data-more><i data-ic="settings"></i><span>Settings</span></a>
+        <button type="button" class="nav-more" id="nav-more" data-pop aria-haspopup="menu"><i data-ic="more"></i><span>More</span></button>
       </nav>
       <div class="side-foot" id="limit"></div>
     </aside>
@@ -58,5 +61,7 @@
   <div id="toast" class="toast" hidden></div>
   <script src="/app.js"></script>
   <script src="/builder.js"></script>
+  <script src="/calendar.js"></script>
+  <script src="/insights.js"></script>
 </body>
 </html>

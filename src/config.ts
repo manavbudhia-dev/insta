@@ -28,7 +28,7 @@ export const config = {
 };
 
 /** Permissions the login configuration must include (chosen in the Meta dashboard, not in the URL). */
-export const PERMISSIONS = ['instagram_basic', 'instagram_manage_messages', 'instagram_manage_comments', 'instagram_content_publish'];
+export const PERMISSIONS = ['instagram_basic', 'instagram_manage_messages', 'instagram_manage_comments', 'instagram_content_publish', 'instagram_manage_insights'];
 
 export const WEBHOOK_FIELDS = ['messages', 'messaging_postbacks', 'comments'];
 

@@ -23,7 +23,8 @@ cannot be automated: Meta only allows them by hand. The script tells you every v
 - **Visual flow builder** – drag-and-drop multi-step conversations on a canvas (see [Flows](#flows)).
 - **Inbox** – see every conversation, reply by hand, pause automation per person.
 - **Human takeover** – if you answer from the Instagram app, automation goes quiet in that chat for a while.
-- **Post scheduler** – photos, carousels, reels and stories, published at the time you pick.
+- **Content calendar** – plan photos, carousels, reels and stories on a monthly calendar; drag a post to another day to move it.
+- **Insights** – conversation and automation metrics, best time to post, follower growth and post performance.
 - **Safety** – 24-hour window enforced, hourly send cap, per-person cooldowns, de-duplication, retry with backoff.
 
 ## Rules Meta enforces (and this app respects)
@@ -81,7 +82,8 @@ Then:
    and attach it to your business portfolio.
 2. Open **Use cases → Manage messaging & content on Instagram → Customize → API setup with Unified login**.
 3. **Configure your app → Create new configuration.** Keep these permissions: `instagram_basic`,
-   `instagram_manage_messages`, `instagram_manage_comments`, `instagram_content_publish`
+   `instagram_manage_messages`, `instagram_manage_comments`, `instagram_content_publish`, and add
+   `instagram_manage_insights` (for reach and views on the Insights page) with **Edit permissions**
    (you can remove the two ads permissions). Choose a token that **never expires** if offered.
    Select **Use this configuration**.
 4. Under **Redirect URL** enter `https://insta.zealcoder.in/auth/instagram/callback` and save.
@@ -144,6 +146,25 @@ If you later obtain Advanced Access, comment webhooks start arriving and replies
 DM, story reply and story mention triggers arrive by webhook and are instant.
 
 ---
+
+## Calendar and Insights
+
+**Calendar** shows each month with everything planned and published:
+
+- Click **+** on a day (or a day, then *Schedule on this day*) to schedule a post for it.
+- Drag a scheduled post to another day to move it; it keeps its time of day.
+- Posts published directly in the Instagram app appear too, with likes and comments.
+- Failed posts are marked in red; open one to see Instagram's error and retry. The **List** tab shows every post in a table.
+
+**Insights** covers the last 7, 30 or 90 days:
+
+- **Conversations:** DMs and comments received, replies sent (and how many were automated), median time to first reply, new contacts, delivery rate, and a daily chart.
+- **When people message you:** a weekday × hour heatmap with the busiest window, a good guide for posting times.
+- **Top automations, flows and delivery:** which rules and flows send the most, flow completion, and why messages were skipped or failed.
+- **Instagram:** followers over time (the app records the count every hour, so the chart starts the day you install it), average likes and comments, engagement rate, and your recent posts ranked.
+- **Reach and views** need the `instagram_manage_insights` permission. Without it the page explains how to add it; everything else works regardless.
+
+Instagram data is cached for 15 minutes (per-post insights for an hour) to stay well inside Meta's rate limits.
 
 ## Flows
 

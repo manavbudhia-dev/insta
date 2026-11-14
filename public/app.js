@@ -53,6 +53,7 @@
     pause: '<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>',
     refresh: '<path d="M21 12a9 9 0 0 1-15.5 6.2L3 16m0 5v-5h5M3 12a9 9 0 0 1 15.5-6.2L21 8m0-5v5h-5"/>',
     link: '<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>',
+    chart: '<path d="M3 3v18h18"/><path d="M7 15v2M11 10v7M15 12v5M19 6v11"/>',
     image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3-3-9 9"/>',
   };
   const ic = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${P[n] || ''}</svg>`;
@@ -210,7 +211,8 @@
     flows: { icon: 'flow', title: () => 'Flows', sub: 'Multi-step conversations built visually: buttons, questions, conditions, delays and tags.' },
     flow: { icon: 'flow', title: () => 'Flow builder', sub: '' },
     inbox: { icon: 'chat', title: () => 'Inbox', sub: 'Conversations and comments handled by your automations.' },
-    posts: { icon: 'calendar', title: () => 'Scheduler', sub: 'Queue photos, carousels, reels and stories. Times are in your local timezone.' },
+    posts: { icon: 'calendar', title: () => 'Content calendar', sub: 'Plan photos, carousels, reels and stories by month. Times are in your local timezone.' },
+    insights: { icon: 'chart', title: () => 'Insights', sub: 'How your conversations, automations and posts are performing.' },
     activity: { icon: 'activity', title: () => 'Activity', sub: 'Every reply the system queued, and what happened to it.' },
     settings: { icon: 'settings', title: () => 'Settings', sub: 'Safety limits and how comments are collected.' },
   };
@@ -350,6 +352,7 @@
     const g = ++gen;
     currentView = view;
     $$('#nav a').forEach((a) => a.classList.toggle('active', a.dataset.view === (view === 'flow' ? 'flows' : view)));
+    $('#nav-more')?.classList.toggle('active', !!$('#nav a.active[data-more]'));
     document.body.classList.toggle('builder-mode', view === 'flow');
     clearInterval(refreshTimer);
     renderTopbar();
@@ -878,40 +881,11 @@
     return d.toISOString().slice(0, 16);
   };
 
-  views.posts = async () => {
-    const g = gen;
-    const posts = await api('/posts');
-    if (g !== gen) return;
-    const pill = (p) => ({ scheduled: '<span class="pill ok">Scheduled</span>', publishing: '<span class="pill warn">Publishing…</span>', published: '<span class="pill accent">Published</span>', failed: '<span class="pill bad">Failed</span>' }[p.status]);
-    main.innerHTML = `
-      <section class="card">
-        <div class="card-head"><div><h2>Scheduled posts</h2><p>${posts.filter((p) => p.status === 'scheduled').length} waiting to publish</p></div><button class="btn primary" id="new-post" type="button">${ic('plus')}Schedule post</button></div>
-        ${posts.length ? `<div class="table-wrap"><table>
-        <tr><th>Media</th><th>Type</th><th>Caption</th><th>When</th><th>Status</th><th></th></tr>
-        ${posts.map((p) => `<tr>
-          <td><div class="thumbs">${p.media.slice(0, 3).map(thumb).join('')}${p.media.length > 3 ? `<span class="muted small">+${p.media.length - 3}</span>` : ''}</div></td>
-          <td>${POST_TYPES[p.type]}</td>
-          <td class="clip">${esc(p.caption.slice(0, 140))}${p.caption.length > 140 ? '…' : ''}</td>
-          <td style="white-space:nowrap">${when(p.status === 'published' ? p.published_at : p.scheduled_at)}</td>
-          <td>${pill(p)}${p.error ? `<div class="small error">${esc(p.error)}</div>` : ''}</td>
-          <td><div class="row" style="flex-wrap:nowrap">${p.status === 'scheduled' || p.status === 'failed' ? `<button class="btn small" data-edit="${p.id}" type="button">${p.status === 'failed' ? 'Retry / edit' : 'Edit'}</button>` : ''}${p.status !== 'publishing' ? `<button class="btn small danger" data-del="${p.id}" type="button">Delete</button>` : ''}</div></td>
-        </tr>`).join('')}</table></div>` : '<div class="empty">Nothing scheduled yet.</div>'}
-      </section>`;
-    $('#new-post').onclick = () => postForm(null);
-    $$('[data-edit]').forEach((b) => (b.onclick = () => postForm(posts.find((p) => p.id == b.dataset.edit))));
-    $$('[data-del]').forEach((b) => (b.onclick = run(async () => {
-      if (!confirm('Remove this post from the scheduler? (A published post stays on Instagram.)')) return;
-      await api(`/posts/${b.dataset.del}`, { method: 'DELETE' });
-      views.posts();
-    })));
-    refreshTimer = setInterval(() => visible() && $('#modal').hidden && run(views.posts)(), 30000);
-  };
-
   const thumb = (m) => `<span class="thumb">${m.kind === 'video' ? `<video src="${esc(m.url)}" muted preload="metadata"></video>` : `<img src="${esc(m.url)}" alt="" loading="lazy">`}</span>`;
 
-  function postForm(post) {
+  function postForm(post, defaults = {}) {
     let media = post ? [...post.media] : [];
-    const at = post && post.scheduled_at > Date.now() ? post.scheduled_at : Date.now() + 3600000;
+    const at = post && post.scheduled_at > Date.now() ? post.scheduled_at : defaults.at ?? Date.now() + 3600000;
     const box = openModal(`
       ${modalHead(post ? 'Edit post' : 'Schedule a post')}
       <form class="form" id="post-form">
@@ -962,7 +936,7 @@
       const body = { type: f.type.value, caption: f.type.value === 'STORIES' ? '' : f.caption.value, media, scheduled_at: new Date(f.at.value).getTime() };
       await api(post ? `/posts/${post.id}` : '/posts', { method: post ? 'PUT' : 'POST', body });
       closeModal();
-      toast('Post scheduled');
+      toast(post ? 'Post updated' : 'Post scheduled');
       route();
     });
   }
@@ -1026,10 +1000,16 @@
     }, 'Settings saved');
   };
 
+  // On phones the bottom bar holds five tabs; the rest live behind "More".
+  $('#nav-more').onclick = (e) => popover(e.currentTarget, $$('#nav a[data-more]').map((a) => ({
+    icon: { rules: 'zap', activity: 'activity', settings: 'settings' }[a.dataset.view], label: a.textContent.trim(), href: a.getAttribute('href'),
+  })));
+
   // Shared with builder.js, which adds the Flows pages.
   window.DMA = {
     $, $$, esc, ic, api, toast, run, debounce, openModal, closeModal, modalHead, popover, closePop, views, main,
-    ago, num, route: () => route(), gen: () => gen, guard: null,
+    ago, num, when, route: () => route(), gen: () => gen, guard: null, postForm, IG, POST_TYPES,
+    setRefresh: (t) => { clearInterval(refreshTimer); refreshTimer = t; }, visible,
   };
 
   mount();

@@ -7,6 +7,7 @@ import { checkToken, isLoggedIn, login, logout, makeToken, requireLogin } from '
 import { db, log, redact } from './db.js';
 import { authorizeUrl, exchangeCode, sealStoredToken, startWebhookWatch } from './instagram.js';
 import { startFlowTimer } from './flows.js';
+import { startSnapshots } from './insights.js';
 import { startPoller } from './poller.js';
 import { startQueue, stopQueue } from './queue.js';
 import { startScheduler } from './scheduler.js';
@@ -129,6 +130,7 @@ const server = app.listen(config.port, () => {
   startScheduler();
   startFlowTimer();
   startWebhookWatch();
+  startSnapshots();
 });
 
 // A stray rejection should be logged, not take the whole worker down mid-send.

@@ -8,6 +8,7 @@ import { config, PERMISSIONS } from './config.js';
 import { db, DEFAULTS, getSetting, log, opt, redact, setSetting } from './db.js';
 import { clip, parseRule } from './engine.js';
 import { getFlow, GraphError, sanitizeGraph, validateGraph, type Graph } from './flows.js';
+import { automationMetrics, calendar, instagramMetrics } from './insights.js';
 import { accounts, connected, disconnect, ensureWebhooks, IgError, saveToken, selectAccount, webhookState } from './instagram.js';
 import { pollOnce } from './poller.js';
 import { enqueue, windowOpen } from './queue.js';
@@ -532,6 +533,27 @@ api.put('/posts/:id', h((req) => {
     .run({ ...p, id: Number(req.params.id) });
   if (!info.changes) bad('Only scheduled or failed posts can be edited');
 }));
+/** Drag-and-drop on the calendar: move a scheduled (or failed) post to a new time. */
+api.post('/posts/:id/reschedule', h((req) => {
+  const at = Number(req.body?.scheduled_at);
+  if (!Number.isFinite(at) || at < Date.now() - 60_000) bad('Pick a time in the future');
+  const info = db.prepare("UPDATE posts SET scheduled_at = ?, status = 'scheduled', error = NULL WHERE id = ? AND status IN ('scheduled','failed')").run(at, Number(req.params.id));
+  if (!info.changes) bad('Only scheduled or failed posts can be moved');
+}));
+api.get('/calendar', h(async (req) => {
+  const from = Number(req.query.from);
+  const to = Number(req.query.to);
+  if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from || to - from > 50 * 86400_000) bad('Invalid date range');
+  return calendar(from, to);
+}));
+
+// ---------- insights ----------
+
+const periodOf = (v: unknown) => ([7, 30, 90].includes(Number(v)) ? Number(v) : 30);
+const tzOf = (v: unknown) => Math.max(-14 * 60, Math.min(14 * 60, Math.trunc(Number(v) || 0)));
+api.get('/insights', h((req) => automationMetrics(periodOf(req.query.days), tzOf(req.query.tz))));
+api.get('/insights/instagram', h(async (req) => instagramMetrics(periodOf(req.query.days))));
+
 api.delete('/posts/:id', h((req) => {
   const info = db.prepare("DELETE FROM posts WHERE id = ? AND status != 'publishing'").run(Number(req.params.id));
   if (!info.changes) bad('This post is being published right now');
