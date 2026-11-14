@@ -128,7 +128,7 @@ Caddy fetches the HTTPS certificate automatically. Open <https://insta.zealcoder
    (Alternative: paste the token from *Generate access tokens* into the dashboard.)
 4. If you signed in with Facebook, turn on **Allow access to messages** in the Instagram app:
    Settings → Messages and story replies → Message controls → Connected tools. (Signing in with Instagram asks for this during login.)
-5. Send your account a DM from a different account. The Overview page should show "Last webhook received just now".
+5. Send your account a DM from a different account. Open the Setup checklist on Overview: "Subscribe to webhooks" turns green and Recent Activity lists the DM.
 
 ### About comment triggers and App Review
 
@@ -162,7 +162,7 @@ The token also stops working if you remove the app from your business portfolio 
 - **"This token has no Instagram account assigned":** connect again and tick your Instagram account on the asset screen.
   If it is not listed, the account is personal (switch to Business/Creator) or sits in a different business portfolio.
 - **"(#200) The account owner has disabled access to Instagram Direct Messaging":** turn on *Allow access to messages* (step 5.4).
-- **No webhooks arriving:** app not in Live mode, account not subscribed (Overview → Re-subscribe webhooks),
+- **No webhooks arriving:** app not in Live mode, account not subscribed (account menu (top right) → Re-subscribe webhooks),
   or "Allow access to messages" is off in the Instagram app.
 - **Reply shows "skipped – outside the 24-hour window":** the person's last message is older than 24 hours. This is Meta's rule.
 - **Scheduled post failed:** the media URL must be publicly reachable over HTTPS, images must be JPEG

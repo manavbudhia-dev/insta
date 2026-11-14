@@ -87,6 +87,95 @@ api.get('/status', h(() => {
   };
 }));
 
+// ---------- dashboard (shell + overview) ----------
+
+const DAY_MS = 86400_000;
+const DM_KINDS = "('dm','story_reply','story_mention')";
+
+/** Small payload the page chrome (sidebar badge, account pill, bell, limit meter) refreshes on every view. */
+api.get('/shell', h(() => {
+  const now = Date.now();
+  const one = (sql: string, ...args: unknown[]) => (db.prepare(sql).get(...args) as { n: number }).n;
+  const on = connected();
+  const expires = Number(getSetting('ig_token_expires_at', '0'));
+  const alerts =
+    one("SELECT COUNT(*) n FROM outbox WHERE status = 'failed' AND created_at > ?", now - DAY_MS) +
+    (getSetting('last_poll_error') ? 1 : 0) +
+    (on && expires > 0 && expires < now ? 1 : 0);
+  return {
+    account: on
+      ? { id: getSetting('ig_user_id'), username: getSetting('ig_username'), name: getSetting('ig_name'), picture: getSetting('ig_picture'), accounts: accounts() }
+      : null,
+    // People whose latest message is still unanswered and whose 24-hour window is open.
+    badge: one(`SELECT COUNT(*) n FROM contacts c WHERE c.last_inbound_at > ?
+      AND (SELECT direction FROM messages m WHERE m.igsid = c.igsid ORDER BY m.created_at DESC, m.id DESC LIMIT 1) = 'in'`, now - DAY_MS),
+    alerts,
+    limit: { used: one("SELECT COUNT(*) n FROM outbox WHERE status = 'sent' AND sent_at > ?", now - 3600_000), max: opt('dm_hourly_limit') },
+    automationEnabled: !!opt('automation_enabled'),
+  };
+}));
+
+/** Everything the Overview cards need: period totals with change vs the previous period, daily trend, per-rule activity, recent events. */
+api.get('/overview', h((req) => {
+  const now = Date.now();
+  const days = Number(req.query.days) === 30 ? 30 : 7;
+  const off = Math.max(-14 * 60, Math.min(14 * 60, Math.trunc(Number(req.query.tz) || 0))) * 60_000; // client's UTC offset
+  const today = Math.floor((now + off) / DAY_MS);
+  const start = (today - days + 1) * DAY_MS - off; // local midnight, `days` days ago
+  const prevStart = start - days * DAY_MS;
+  const one = (sql: string, ...args: unknown[]) => (db.prepare(sql).get(...args) as { n: number }).n;
+  const change = (cur: number, prev: number) => (prev > 0 ? Math.round(((cur - prev) / prev) * 100) : null);
+
+  const received = (from: number, to: number) => one(`SELECT COUNT(*) n FROM messages WHERE direction = 'in' AND kind IN ${DM_KINDS} AND created_at >= ? AND created_at < ?`, from, to);
+  const sent = (from: number, to: number) => one("SELECT COUNT(*) n FROM outbox WHERE status = 'sent' AND kind IN ('dm','private_reply') AND sent_at >= ? AND sent_at < ?", from, to);
+  const recvNow = received(start, now + 1);
+  const recvPrev = received(prevStart, start);
+  const sentNow = sent(start, now + 1);
+  const sentPrev = sent(prevStart, start);
+  const contacts = one('SELECT COUNT(*) n FROM contacts');
+  const newContacts = one('SELECT COUNT(*) n FROM contacts WHERE first_seen >= ?', start);
+
+  const perDay = new Map<number, number>();
+  for (const r of db.prepare(`SELECT CAST((created_at + ?) / 86400000 AS INTEGER) d, COUNT(*) n FROM messages
+      WHERE direction = 'in' AND kind IN ${DM_KINDS} AND created_at >= ? GROUP BY d`).all(off, start) as { d: number; n: number }[]) perDay.set(r.d, r.n);
+  const trend = Array.from({ length: days }, (_, i) => {
+    const idx = today - days + 1 + i;
+    return { date: new Date(idx * DAY_MS).toISOString().slice(0, 10), n: perDay.get(idx) ?? 0 };
+  });
+
+  const ruleReplies: Record<number, number> = {};
+  for (const r of db.prepare(`SELECT rule_id, COUNT(*) n FROM messages WHERE direction = 'out' AND rule_id IS NOT NULL
+      AND kind != 'comment_reply' AND created_at >= ? GROUP BY rule_id`).all(now - 7 * DAY_MS) as { rule_id: number; n: number }[]) ruleReplies[r.rule_id] = r.n;
+
+  type Ev = { ts: number; type: 'reply' | 'dm' | 'comment' | 'post' | 'published' | 'rule'; title: string; sub: string };
+  const ev: Ev[] = [];
+  for (const o of db.prepare(`SELECT o.sent_at ts, o.kind, o.source, c.username FROM outbox o LEFT JOIN contacts c ON c.igsid = o.igsid
+      WHERE o.status = 'sent' ORDER BY o.sent_at DESC LIMIT 6`).all() as any[])
+    ev.push({ ts: o.ts, type: 'reply', title: o.source === 'manual' ? 'Reply sent' : 'Automation reply sent', sub: o.kind === 'comment_reply' ? 'public comment reply' : `to ${o.username ? '@' + o.username : 'a contact'}` });
+  for (const m of db.prepare(`SELECT m.created_at ts, m.kind, c.username FROM messages m LEFT JOIN contacts c ON c.igsid = m.igsid
+      WHERE m.direction = 'in' ORDER BY m.created_at DESC LIMIT 6`).all() as any[])
+    ev.push({ ts: m.ts, type: m.kind === 'comment' ? 'comment' : 'dm', title: m.kind === 'comment' ? 'New comment received' : 'New DM received', sub: `from ${m.username ? '@' + m.username : 'a contact'}` });
+  for (const p of db.prepare("SELECT created_at ts, caption, type FROM posts ORDER BY created_at DESC LIMIT 6").all() as any[])
+    ev.push({ ts: p.ts, type: 'post', title: 'Post scheduled', sub: p.caption ? `“${clip(String(p.caption).split('\n')[0], 40)}”` : 'No caption' });
+  for (const p of db.prepare("SELECT published_at ts, caption FROM posts WHERE status = 'published' AND published_at IS NOT NULL ORDER BY published_at DESC LIMIT 6").all() as any[])
+    ev.push({ ts: p.ts, type: 'published', title: 'Post published', sub: p.caption ? `“${clip(String(p.caption).split('\n')[0], 40)}”` : 'No caption' });
+  for (const r of db.prepare('SELECT created_at ts, name FROM rules ORDER BY created_at DESC LIMIT 6').all() as any[])
+    ev.push({ ts: r.ts, type: 'rule', title: 'Automation created', sub: `“${clip(String(r.name), 40)}”` });
+  ev.sort((a, b) => b.ts - a.ts);
+
+  return {
+    days,
+    received: { value: recvNow, change: change(recvNow, recvPrev) },
+    sent: { value: sentNow, change: change(sentNow, sentPrev) },
+    scheduledPosts: one("SELECT COUNT(*) n FROM posts WHERE status = 'scheduled'"),
+    conversations: { value: contacts, change: contacts - newContacts > 0 ? Math.round((newContacts / (contacts - newContacts)) * 100) : null },
+    trend,
+    prevTotal: recvPrev,
+    ruleReplies,
+    recent: ev.slice(0, 4),
+  };
+}));
+
 // ---------- account ----------
 
 api.post('/account/token', h(async (req) => {

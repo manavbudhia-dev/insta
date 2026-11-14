@@ -4,42 +4,55 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#090a1f">
   <title>DM Autopilot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
+  <!-- shared gradients referenced by inline icons -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <defs>
+      <linearGradient id="g-ig" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#feda75"/><stop offset=".35" stop-color="#fa7e1e"/><stop offset=".62" stop-color="#d62976"/><stop offset="1" stop-color="#4f5bd5"/></linearGradient>
+      <linearGradient id="g-bolt" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8b5cf6"/><stop offset="1" stop-color="#4f46e5"/></linearGradient>
+    </defs>
+  </svg>
+
   <div id="login" class="login" hidden>
     <form id="login-form" class="card login-card">
-      <h1>DM Autopilot</h1>
+      <div class="brand"><span data-logo></span>DM Autopilot</div>
       <p class="muted">Sign in to manage your Instagram automation.</p>
       <label>Password
         <input type="password" name="password" autocomplete="current-password" required autofocus>
       </label>
       <p class="error" id="login-error" hidden></p>
-      <button class="btn primary" type="submit">Sign in</button>
+      <button class="btn primary" type="submit" style="justify-content:center">Sign in</button>
     </form>
   </div>
 
   <div id="app" class="shell" hidden>
     <aside class="side">
-      <div class="brand">DM Autopilot</div>
-      <nav id="nav">
-        <a href="#overview" data-view="overview">Overview</a>
-        <a href="#rules" data-view="rules">Automations</a>
-        <a href="#inbox" data-view="inbox">Inbox</a>
-        <a href="#posts" data-view="posts">Scheduler</a>
-        <a href="#activity" data-view="activity">Activity</a>
-        <a href="#settings" data-view="settings">Settings</a>
+      <a class="brand" href="#overview"><span data-logo></span>DM Autopilot</a>
+      <nav id="nav" aria-label="Main">
+        <a href="#overview" data-view="overview"><i data-ic="home"></i><span>Overview</span></a>
+        <a href="#rules" data-view="rules"><i data-ic="flow"></i><span>Automations</span></a>
+        <a href="#inbox" data-view="inbox"><i data-ic="chat"></i><span>Inbox</span><em class="badge" id="badge" hidden></em></a>
+        <a href="#posts" data-view="posts"><i data-ic="calendar"></i><span>Scheduler</span></a>
+        <a href="#activity" data-view="activity"><i data-ic="activity"></i><span>Activity</span></a>
+        <a href="#settings" data-view="settings"><i data-ic="settings"></i><span>Settings</span></a>
       </nav>
-      <div class="side-foot">
-        <div id="side-account" class="muted small"></div>
-        <button class="btn ghost small" id="logout">Sign out</button>
-      </div>
+      <div class="side-foot" id="limit"></div>
     </aside>
-    <main id="main"></main>
+    <div class="content">
+      <header class="topbar" id="topbar"></header>
+      <div id="banner"></div>
+      <main id="main"></main>
+    </div>
   </div>
 
-  <div id="modal" class="modal" hidden><div class="modal-box card" id="modal-box"></div></div>
+  <div id="modal" class="modal" hidden><div class="modal-box" id="modal-box" role="dialog" aria-modal="true"></div></div>
   <div id="toast" class="toast" hidden></div>
   <script src="/app.js"></script>
 </body>
