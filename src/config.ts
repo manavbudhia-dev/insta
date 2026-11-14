@@ -17,7 +17,7 @@ export const config = {
   /** Login configuration ID from "API setup with Unified login" > Configure your app. */
   metaConfigId: env('META_CONFIG_ID'),
   webhookVerifyToken: env('WEBHOOK_VERIFY_TOKEN'),
-  graphVersion: env('GRAPH_VERSION', 'v26.0'),
+  graphVersion: env('GRAPH_VERSION', 'v27.0'),
   /** Overridable for tests only. */
   graphBase: env('GRAPH_BASE', 'https://graph.facebook.com').replace(/\/+$/, ''),
   /** Worker tick intervals (ms); lowered in tests. */

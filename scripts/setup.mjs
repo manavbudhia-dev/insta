@@ -82,7 +82,7 @@ async function wizard() {
   env.META_APP_ID = await ask('   META_APP_ID (App settings -> Basic -> App ID)', env.META_APP_ID);
   env.META_APP_SECRET = await ask('   META_APP_SECRET (App settings -> Basic -> App secret)', env.META_APP_SECRET);
   env.META_CONFIG_ID = await ask('   META_CONFIG_ID (Unified login -> Configure your app -> config_id)', env.META_CONFIG_ID);
-  env.GRAPH_VERSION ||= 'v26.0';
+  env.GRAPH_VERSION ||= 'v27.0';
   rl.close();
 
   fs.writeFileSync(
