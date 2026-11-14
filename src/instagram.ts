@@ -5,6 +5,7 @@
  * - Token: a Business Integration System User Access Token, exchanged with the META app ID and secret.
  * - Host: graph.facebook.com. `/me` is the system user, so every call uses the Instagram account ID.
  */
+import crypto from 'node:crypto';
 import { config, WEBHOOK_FIELDS } from './config.js';
 import { delSetting, getSetting, log, setSetting } from './db.js';
 
@@ -52,7 +53,13 @@ async function request<T = any>(
   }
   const accessToken = opts.accessToken === null ? '' : opts.accessToken ?? token();
   const headers: Record<string, string> = {};
-  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+    // Required when the Meta app has "Require App Secret" on; harmless otherwise.
+    if (config.metaAppSecret) {
+      url.searchParams.set('appsecret_proof', crypto.createHmac('sha256', config.metaAppSecret).update(accessToken).digest('hex'));
+    }
+  }
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
 
   let res: Response;
@@ -136,10 +143,11 @@ export interface IgAccount {
  * and subscribes the chosen account to webhooks.
  */
 export async function saveToken(accessToken: string, expiresInSec?: number): Promise<void> {
+  // Informational only: never let this block the connection.
   const me = await request<{ id: string; client_business_id?: string }>('GET', '/me', {
     query: { fields: 'client_business_id' },
     accessToken,
-  });
+  }).catch(() => ({ id: '', client_business_id: '' }));
   const list = await request<{ data?: IgAccount[] }>('GET', '/me/assigned_instagram_accounts', {
     query: { fields: 'id,username' },
     accessToken,

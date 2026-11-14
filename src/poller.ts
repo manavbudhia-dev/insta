@@ -1,6 +1,6 @@
 import { db, firstTime, getNum, getSetting, log, opt, setSetting } from './db.js';
 import { handleComment } from './engine.js';
-import { acct, connected, ig } from './instagram.js';
+import { acct, connected, ig, IgError } from './instagram.js';
 
 /**
  * Comment webhooks need Advanced Access (App Review). Until the app has that, this poller
@@ -52,12 +52,29 @@ export async function pollOnce(): Promise<void> {
   }
 }
 
+/** Some API setups reject the `from` field; learn that once and stop asking for it. */
+let withFrom = true;
+
+async function fetchComments(mediaId: string): Promise<any> {
+  const fields = (withFrom ? 'id,text,timestamp,username,from,parent_id' : 'id,text,timestamp,username,parent_id');
+  try {
+    return await ig.get(`/${mediaId}/comments`, { fields, limit: 50 });
+  } catch (e) {
+    if (withFrom && (e as IgError).code === 100) {
+      withFrom = false;
+      log('warn', 'Comments API rejected the "from" field; continuing without it');
+      return fetchComments(mediaId);
+    }
+    throw e;
+  }
+}
+
 async function pollComments(mediaId: string, connectedAt: number): Promise<void> {
   let next: string | undefined;
   for (let page = 0; page < 5; page++) {
     const res: any = next
       ? await ig.next(next)
-      : await ig.get(`/${mediaId}/comments`, { fields: 'id,text,timestamp,username,from,parent_id', limit: 50 });
+      : await fetchComments(mediaId);
     for (const c of res.data ?? []) {
       const ts = c.timestamp ? Date.parse(c.timestamp) : Date.now();
       // Never act on comments made before the account was connected, or too old for a private reply.

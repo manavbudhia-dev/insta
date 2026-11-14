@@ -3,6 +3,16 @@
 A self-hosted Instagram DM automation and post scheduler for **your own** Instagram professional account.
 It uses only the official Instagram API with Unified Login (Meta's current setup), so it follows Meta's messaging rules by design.
 
+## Quick start (one command)
+
+```bash
+node scripts/setup.mjs         # makes your secrets and prints exactly what to paste into Nimbuz and Meta
+node scripts/setup.mjs check   # after deploying: tests the live app and lists what is still missing
+```
+
+The Meta dashboard steps (create the app, the login configuration, accept the tester invite, switch to Live)
+cannot be automated: Meta only allows them by hand. The script tells you every value to paste.
+
 ## What it does
 
 - **DM automations** – reply when a message contains a keyword, is an exact phrase, or is anything at all.

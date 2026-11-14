@@ -4,12 +4,16 @@
   "private": true,
   "type": "module",
   "description": "Self-hosted Instagram DM automation and post scheduler (official Instagram API)",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "build": "tsc -p .",
     "start": "node dist/server.js",
     "dev": "tsx watch --env-file=.env src/server.ts",
-    "test": "tsx --test test/*.test.ts"
+    "test": "tsx --test test/*.test.ts",
+    "setup": "node scripts/setup.mjs",
+    "check": "node scripts/setup.mjs check"
   },
   "dependencies": {
     "better-sqlite3": "^12.2.0",

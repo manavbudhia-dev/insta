@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import type { Request, Response } from 'express';
 import { config } from './config.js';
-import { log, setSetting } from './db.js';
+import { getSetting, log, setSetting } from './db.js';
 import { handleComment, handleMessaging } from './engine.js';
 
 /** GET /webhook — Meta's one-time endpoint verification handshake. */
@@ -42,7 +42,10 @@ export function receiveWebhook(req: Request, res: Response): void {
 
   const body = req.body;
   if (body?.object !== 'instagram' || !Array.isArray(body.entry)) return;
+  const active = getSetting('ig_user_id');
   for (const entry of body.entry) {
+    // Several Instagram accounts can be shared with the app; only act for the active one.
+    if (active && entry.id && String(entry.id) !== active) continue;
     for (const ev of entry.messaging ?? []) {
       handleMessaging(ev).catch((e) => log('error', `Message handling failed: ${e.message}`));
     }
