@@ -13,6 +13,7 @@
   const igNew = (k, at) => (CFG.igNew ? CFG.igNew(k, at) : D.postForm(null, { at }));
   const igEdit = (post) => (CFG.igEdit ? CFG.igEdit(post) : D.postForm(post));
   const modalOpen = () => !!document.querySelector('#modal:not([hidden])');
+  const changed = () => CFG.onChange?.(); // lets the home page refresh its other panels after an edit here
 
   const pad = (n) => String(n).padStart(2, '0');
   const keyOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -23,6 +24,7 @@
     publishing: { label: 'Publishing', icon: 'refresh' },
     published: { label: 'Published', icon: 'check' },
     failed: { label: 'Failed', icon: 'x' },
+    draft: { label: 'Needs approval', icon: 'edit' }, // AI-written LinkedIn post waiting for your OK
     instagram: { label: 'On Instagram', icon: 'image' },
   };
   const LI_TYPES = { text: 'Text', image: 'Image', video: 'Video', poll: 'Poll' };
@@ -220,7 +222,7 @@
     if (keyOf(dayOf(selected)).slice(0, 7) !== keyOf(month).slice(0, 7) && !days.some((d) => keyOf(d) === selected)) selected = keyOf(month);
     const sum = [
       ...(multi && plat === 'all' ? ['instagram', 'linkedin'].map((p) => perPlat(p) ? `<span class="cal-key"><span class="cal-pf pf-${p}"></span>${perPlat(p)} ${PLATFORMS[p]}</span>` : '') : []),
-      ...['scheduled', 'published', 'instagram', 'failed'].map((s) => count(s) ? `<span class="cal-key st-${s}"><span class="cal-st">${ic(STATUS[s].icon)}</span>${count(s)} ${s === 'instagram' ? 'on Instagram' : STATUS[s].label.toLowerCase()}</span>` : ''),
+      ...['scheduled', 'draft', 'published', 'instagram', 'failed'].map((s) => count(s) ? `<span class="cal-key st-${s}"><span class="cal-st">${ic(STATUS[s].icon)}</span>${count(s)} ${s === 'instagram' ? 'on Instagram' : STATUS[s].label.toLowerCase()}</span>` : ''),
     ].join('');
     main.innerHTML = `
       <div class="stack">
@@ -252,6 +254,7 @@
   }
 
   const editBtn = (it) => {
+    if (it.kind === 'li' && it.status === 'draft') return `<button class="btn small primary" type="button" data-approve="${Number(it.id)}">Approve</button><a class="btn small" href="/linkedin/?edit=${Number(it.id)}">Edit</a>`;
     if (!movable(it)) return '';
     const label = it.status === 'failed' ? 'Retry / edit' : 'Edit';
     return it.kind === 'li' ? `<a class="btn small" href="/linkedin/?edit=${Number(it.id)}">${label}</a>` : `<button class="btn small" type="button" data-edit="${it.id}">${label}</button>`;
@@ -285,6 +288,12 @@
 
   function bindPostActions(box) {
     $$('[data-edit]', box).forEach((b) => (b.onclick = () => igEdit(data.posts.find((p) => p.id == b.dataset.edit))));
+    $$('[data-approve]', box).forEach((b) => (b.onclick = run(async () => {
+      const r = await li(`/auto/drafts/${b.dataset.approve}/approve`, { method: 'POST' });
+      toast(`Approved. It will post ${new Date(r.when_at).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}`);
+      await views.posts();
+      changed();
+    })));
     $$('[data-del]', box).forEach((b) => (b.onclick = run(async () => {
       const [kind, id] = b.dataset.del.split(':');
       const where = kind === 'li' ? 'LinkedIn' : 'Instagram';
@@ -292,7 +301,8 @@
       if (kind === 'li') await li(`/posts/${id}`, { method: 'DELETE' });
       else await api(`/posts/${id}`, { method: 'DELETE' });
       toast('Post removed');
-      views.posts();
+      await views.posts();
+      changed();
     })));
   }
 
@@ -363,7 +373,8 @@
         else await api(`/posts/${it.id}/reschedule`, { method: 'POST', body: { scheduled_at: at } });
         toast(`Moved to ${new Date(at).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })}${note}`);
         selected = keyOf(new Date(at));
-        views.posts();
+        await views.posts();
+        changed();
       })();
     });
   }

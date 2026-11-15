@@ -10,7 +10,7 @@
 .cal-st { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 5px; font-size: 11px; flex: none; }
 .cal-st svg { stroke-width: 2.4; }
 .st-scheduled { --st: #a78bfa; } .st-published { --st: var(--ok); } .st-failed { --st: var(--bad); }
-.st-publishing, .st-pending { --st: var(--warn); } .st-instagram { --st: #9ea2cc; } .st-sent { --st: var(--ok); } .st-skipped { --st: var(--warn); }
+.st-draft { --st: #f59e0b; } .st-publishing, .st-pending { --st: var(--warn); } .st-instagram { --st: #9ea2cc; } .st-sent { --st: var(--ok); } .st-skipped { --st: var(--warn); }
 .cal-st { color: var(--st); background: color-mix(in srgb, var(--st) 18%, transparent); }
 .cal-key { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text); white-space: nowrap; }
 .ag-thumb { width: 44px; height: 44px; border-radius: 9px; overflow: hidden; display: grid; place-items: center; background: #0d0f2b; border: 1px solid var(--line); color: var(--faint); flex: none; font-size: 18px; }

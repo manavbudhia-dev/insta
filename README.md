@@ -239,6 +239,22 @@ LinkedIn → Accounts → Team → **Send invite** creates an editor or admin wi
 pass it on yourself). Team members sign in at `/linkedin/classic.html` with email and password and only see the LinkedIn
 section; the Instagram dashboard still needs `ADMIN_PASSWORD`.
 
+### AI content studio (home page)
+
+The home page has an **AI content studio** for LinkedIn, built on Auto content:
+
+- **Write a post:** type an idea, get 1 to 3 versions in your voice, edit, then *Schedule* (next free slot), *Pick a time*
+  or *Save as draft*.
+- **Plan ahead:** optionally give a theme and pick 7, 14 or 30 days; Claude writes a post for every empty slot and puts
+  them on the calendar.
+- **Autopilot:** on/off switch, plus *Ask me before posting* (drafts you approve) or *Post automatically*.
+- **Waiting for your approval:** approve one or all; drafts also show on the calendar as *Needs approval*.
+
+Everything that is scheduled publishes by itself at its date and time (the scheduler checks every 30 seconds).
+It needs an Anthropic API key and, in LinkedIn → Auto content, the account to post as, posting days and times, and your
+topics. Requests use structured outputs (so replies always parse) and, on supported models, the server-side refusal
+fallback. The default model is `claude-sonnet-5-5`; another can be set in Auto content.
+
 ### Auto content (optional)
 
 LinkedIn → Auto content fills empty time slots with drafts you approve: paste posts written in claude.ai, push them from

@@ -176,12 +176,12 @@ app.get('/api/posts', auth, (_, res) => res.json(db.prepare(postSql + ' order by
 // For the shared content calendar: every non-draft post whose date (publish time once published) falls in [from, to).
 app.get('/api/calendar', auth, (req, res) => {
   const from = Number(req.query.from) || 0, to = Number(req.query.to) || Date.now() + 366 * 864e5;
-  res.json(db.prepare(postSql + ` where p.status != 'draft'
+  res.json(db.prepare(postSql + ` where (p.status != 'draft' or p.ai = 1)
       and (case when p.status = 'published' and p.published_at then p.published_at else p.when_at end) >= ?
       and (case when p.status = 'published' and p.published_at then p.published_at else p.when_at end) < ?
     order by p.when_at limit 1000`).all(from, to)
-    .map(({ id, text, when_at, published_at, status, error, urn, type, media_json, account_name, account_kind }) =>
-      ({ id, text, when_at, published_at, status, error, urn, type, media_json, account_name, account_kind })));
+    .map(({ id, text, when_at, published_at, status, error, urn, type, media_json, account_name, account_kind, ai }) =>
+      ({ id, text, when_at, published_at, status, error, urn, type, media_json, account_name, account_kind, ai })));
 });
 const DURATIONS = ['ONE_DAY', 'THREE_DAYS', 'SEVEN_DAYS', 'FOURTEEN_DAYS'];
 
@@ -471,6 +471,29 @@ app.post('/api/auto/generate', auth, adminOnly, wrap(async (_, res) => {
   const r = await auto.runAuto({ force: true });
   res.json(r);
 }));
+// From the dashboard's AI studio: write a post from an idea (not saved yet).
+app.post('/api/auto/compose', auth, adminOnly, (req, res) => {
+  auto.compose({ idea: req.body.idea, count: req.body.count })
+    .then((r) => res.json(r), (e) => res.status(e.status || 500).json({ error: e.message }));
+});
+// Plan ahead: fill the empty slots of the next 7 to 30 days, optionally around a theme. Drafts or scheduled, per the mode.
+app.post('/api/auto/plan', auth, adminOnly, (req, res) => {
+  auto.runAuto({ force: true, brief: String(req.body.brief || ''), horizonDays: +req.body.days || 7 })
+    .then((r) => res.json(r), (e) => res.status(e.status || 500).json({ error: e.message }));
+});
+// Save a post you wrote or picked: at the given time, or in the next empty slot. Scheduled posts publish by themselves.
+app.post('/api/auto/add', auth, adminOnly, (req, res) => {
+  try {
+    const status = req.body.status === 'draft' ? 'draft' : 'scheduled';
+    const when = req.body.whenAt ? new Date(+req.body.whenAt).toISOString() : undefined;
+    const r = auto.addPosts([{ text: req.body.text, when }], { status, userId: req.user.id });
+    if (!r.created) {
+      const why = r.skipped.duplicate ? 'This post is too close to one you already have' : r.skipped.noSlot ? 'No empty slot in the next 60 days. Pick a time instead.' : 'Post text must be 1 to 3000 characters';
+      return res.status(400).json({ error: why });
+    }
+    res.json(r);
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+});
 app.post('/api/auto/approve-all', auth, adminOnly, (_, res) => {
   const ids = db.prepare("select id from posts where ai=1 and status='draft'").all();
   ids.forEach((r) => auto.approve(r.id));

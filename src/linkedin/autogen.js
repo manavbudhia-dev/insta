@@ -1,4 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import Anthropic from '@anthropic-ai/sdk';
 import db from './db.js';
 import { getSetting, setSetting, setSecret, getSecret, sendWebhook, appUrl } from './settings.js';
 import { PREFIX } from './paths.js';
@@ -7,7 +8,6 @@ import { PREFIX } from './paths.js';
    Approve first (default): posts are saved as drafts and wait for a click.
    Full auto: posts are scheduled straight away and the normal scheduler publishes them. */
 
-const API = () => (process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com').replace(/\/+$/, '');
 export const DEFAULT_MODEL = 'claude-sonnet-5-5';
 const HOUR = 36e5, DAY = 864e5;
 const MAX_PER_24H = 30;      // hard stop on generated posts per day, whatever the settings say
@@ -112,8 +112,10 @@ const rules = (cfg) => `Rules for every post:
 - No emojis spam (at most 1 or 2), no more than 3 hashtags, no "I'm thrilled to announce", no engagement bait like "comment YES".
 - Each post must stand on its own and differ clearly from the recent posts listed below.`;
 
-const details = (cfg, recent) => [
-    `Topics to write about:\n${cfg.topics}`,
+const details = (cfg, recent, brief = '', idea = '') => [
+    idea && `What the author wants to post about (follow this closely):\n${idea}`,
+    brief && `Focus for this batch of posts (spread it across them, one angle per post):\n${brief}`,
+    cfg.topics && `${idea ? 'Their usual topics, for context' : 'Topics to write about'}:\n${cfg.topics}`,
     cfg.audience && `Audience: ${cfg.audience}`,
     cfg.tone && `Voice and tone: ${cfg.tone}`,
     cfg.avoid && `Avoid: ${cfg.avoid}`,
@@ -121,26 +123,51 @@ const details = (cfg, recent) => [
     recent.length && `Recent posts, don't repeat these ideas:\n${recent.map((t, i) => `${i + 1}. ${t.slice(0, 280).replace(/\s+/g, ' ')}`).join('\n')}`
   ].filter(Boolean).join('\n\n');
 
-function prompt(cfg, count, recent) {
-  const system = `You write LinkedIn posts for one person, in their voice. Reply with JSON only, no markdown fences, no commentary.\n\n${rules(cfg)}\n\nReturn exactly: {"posts":[{"text":"..."}]} with ${count} item${count === 1 ? '' : 's'}.`;
-  const user = `${details(cfg, recent)}\n\nWrite ${count} new post${count === 1 ? '' : 's'}.`;
+function prompt(cfg, count, recent, { brief = '', idea = '' } = {}) {
+  const system = `You write LinkedIn posts for one person, in their voice.\n\n${rules(cfg)}\n\nReturn ${count} post${count === 1 ? '' : 's'} in the "posts" list, each as the full post text.`;
+  const user = `${details(cfg, recent, brief, idea)}\n\nWrite ${count} new post${count === 1 ? '' : 's'}.`;
   return { system, user };
 }
 
-async function askClaude({ system, user, max = 4000 }) {
+// The reply is constrained to this shape (structured outputs), so it always parses.
+const POSTS_SCHEMA = {
+  type: 'object',
+  properties: { posts: { type: 'array', items: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'], additionalProperties: false } } },
+  required: ['posts'],
+  additionalProperties: false
+};
+// Models that accept the server-side refusal fallback: a declined request is re-run on another model in the same call.
+const FALLBACK_MODELS = new Set(['claude-fable-5-2', 'claude-fable-5-1', 'claude-opus-5-5', 'claude-opus-5', 'claude-sonnet-5-5']);
+
+let cached = null; // one client per API key; ANTHROPIC_BASE_URL is picked up by the SDK itself
+function anthropic() {
   const key = apiKey();
   if (!key) throw new Error('No Anthropic API key set');
-  const res = await fetch(`${API()}/v1/messages`, {
-    method: 'POST', signal: AbortSignal.timeout(120_000),
-    headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({ model: getModel(), max_tokens: max, system, messages: [{ role: 'user', content: user }] })
-  });
-  const j = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const m = j?.error?.message || `Anthropic answered ${res.status}`;
-    throw new Error(res.status === 401 ? 'Anthropic rejected the API key' : res.status === 429 ? 'Anthropic rate limit reached. Will retry later.' : m);
+  if (cached?.key !== key) cached = { key, client: new Anthropic({ apiKey: key, timeout: 180_000, maxRetries: 2 }) };
+  return cached.client;
+}
+
+async function askClaude({ system, user }) {
+  const model = getModel();
+  let res;
+  try {
+    res = await anthropic().beta.messages.create({
+      model,
+      max_tokens: 16000,
+      system,
+      messages: [{ role: 'user', content: user }],
+      output_config: { format: { type: 'json_schema', schema: POSTS_SCHEMA } },
+      ...(FALLBACK_MODELS.has(model) ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' } : {})
+    });
+  } catch (e) {
+    if (e instanceof Anthropic.AuthenticationError) throw new Error('Anthropic rejected the API key');
+    if (e instanceof Anthropic.RateLimitError) throw new Error('Anthropic rate limit reached. Will retry later.');
+    if (e instanceof Anthropic.APIError) throw new Error(e.message || `Anthropic answered ${e.status}`);
+    throw e;
   }
-  return (j.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
+  if (res.stop_reason === 'refusal') throw new Error('Claude declined to write this. Try other wording or topics.');
+  if (res.stop_reason === 'max_tokens') throw new Error('The answer was cut off. Ask for fewer posts at once.');
+  return res.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
 }
 
 function parsePosts(text) {
@@ -152,13 +179,14 @@ function parsePosts(text) {
 
 const recentTexts = (accountId) => db.prepare("select text from posts where account_id=? and status!='failed' order by when_at desc limit 15").all(accountId).map((r) => r.text);
 
-// Generates `count` fresh, de-duplicated posts.
-async function write(cfg, count) {
-  const recent = recentTexts(cfg.accountId), { system, user } = prompt(cfg, count, recent);
+// Generates `count` fresh, de-duplicated posts. `brief` steers a whole batch, `idea` a single post.
+async function write(cfg, count, extra = {}) {
+  const recent = recentTexts(cfg.accountId), { system, user } = prompt(cfg, count, recent, extra);
   const out = [];
   for (const t of parsePosts(await askClaude({ system, user }))) {
     if (t.length > 3000) continue;
-    if ([...recent, ...out].some((r) => similar(t, r) > 0.55)) continue;
+    // Versions of one idea are meant to be alike, so they are only checked against earlier posts, not each other.
+    if ([...recent, ...(extra.idea ? [] : out)].some((r) => similar(t, r) > 0.55)) continue;
     out.push(t);
   }
   return out;
@@ -166,13 +194,17 @@ async function write(cfg, count) {
 
 /* ---- the job ---- */
 let running = false;
-export async function runAuto({ force = false } = {}) {
+export async function runAuto({ force = false, brief = '', horizonDays = null } = {}) {
   if (running) return { created: 0, busy: true };
   running = true;
+  // A plan run from the dashboard can look further ahead than the saved setting (up to 30 days).
+  const window = horizonDays ? { horizonDays: Math.min(30, Math.max(2, +horizonDays || 7)) } : {};
   try {
-    const cfg = getConfig();
+    const cfg = { ...getConfig(), ...window };
     if (!force && !cfg.enabled) return { created: 0 };
     if (!cfg.accountId) throw new Error('Choose which account to post as');
+    if (!cfg.topics && !brief) throw new Error('Add your topics in Auto content settings, or say what to focus on');
+    if (!cfg.days.length || !cfg.times.length) throw new Error('Pick posting days and times in Auto content settings first');
     const acc = db.prepare('select * from accounts where id=?').get(cfg.accountId);
     if (!acc) throw new Error('The account was removed. Choose another one.');
     let slots = emptySlots(cfg);
@@ -182,26 +214,26 @@ export async function runAuto({ force = false } = {}) {
     slots = slots.slice(0, Math.max(0, Math.min(MAX_PER_RUN, budget)));
     if (!slots.length) { if (force) setLast({ ok: true, created: 0, note: 'Every slot already has a post' }); return { created: 0 }; }
 
-    const texts = await write(cfg, slots.length);
+    const texts = await write(cfg, slots.length, { brief: str(brief, 1000) });
 
     // The call above can take up to two minutes. In that time a webhook push, a paste-import or a person may have
     // taken some of the slots, or changed the settings. Decide what to do from the situation NOW, not the one before.
-    const now = Date.now(), fresh = getConfig();
+    const now = Date.now(), fresh = { ...getConfig(), ...window };
     if (fresh.accountId !== cfg.accountId || (!force && !fresh.enabled)) { setLast({ ok: true, created: 0, note: 'Settings changed while writing. Nothing was added.' }); return { created: 0 }; }
     const status = fresh.mode === 'auto' ? 'scheduled' : 'draft';
     const author = fresh.updatedBy || db.prepare("select id from users where role='admin' order by id limit 1").get()?.id || null;
     const ins = db.prepare("insert into posts(account_id,text,when_at,status,created_by,created_at,updated_at,type,ai) values(?,?,?,?,?,?,?,'text',1)");
     // Re-check the slots and insert in one transaction, so nothing can slip in between.
-    const created = db.transaction(() => {
+    const added = db.transaction(() => {
       const open = emptySlots(fresh, now).slice(0, texts.length);
-      open.forEach((when, i) => ins.run(fresh.accountId, texts[i], when, status, author, now, now));
-      return open.length;
+      return open.map((when, i) => ({ id: ins.run(fresh.accountId, texts[i], when, status, author, now, now).lastInsertRowid, when_at: when, status, text: texts[i] }));
     })();
+    const created = added.length;
     setLast({ ok: true, created, mode: fresh.mode, ...(created < texts.length ? { note: 'Some slots were filled while writing' } : {}) });
     if (created) sendWebhook(fresh.mode === 'auto'
       ? `Autopilot: ${created} AI post${created === 1 ? '' : 's'} scheduled for ${acc.name}${appUrl() ? ': ' + appUrl() + PREFIX + '/queue.html' : '.'}`
       : `Autopilot: ${created} new AI draft${created === 1 ? ' is' : 's are'} waiting for your approval${appUrl() ? ': ' + appUrl() + PREFIX + '/auto.html' : '.'}`).catch(() => {});
-    return { created };
+    return { created, posts: added };
   } catch (e) {
     const prev = lastRun();
     setLast({ ok: false, error: e.message });
@@ -210,6 +242,20 @@ export async function runAuto({ force = false } = {}) {
       sendWebhook(`Autopilot: auto content could not run. ${e.message}${appUrl() ? ' ' + appUrl() + PREFIX + '/auto.html' : ''}`).catch(() => {});
     throw e;
   } finally { running = false; }
+}
+
+// Writes 1 to 3 versions of one post from an idea. Nothing is saved: the person picks one and schedules it.
+export async function compose({ idea, count = 1 }) {
+  const cfg = getConfig();
+  const text = str(idea, 1500);
+  if (!text) throw Object.assign(new Error('Say what the post should be about'), { status: 400 });
+  if (!cfg.accountId || !db.prepare('select 1 from accounts where id=?').get(cfg.accountId))
+    throw Object.assign(new Error('Choose which LinkedIn account to post as in Auto content settings'), { status: 422 });
+  const n = Math.min(3, Math.max(1, parseInt(count, 10) || 1));
+  const posts = await write(cfg, n, { idea: text });
+  if (!posts.length) throw new Error('Claude returned nothing new. Try again or reword the idea.');
+  const next = cfg.days.length && cfg.times.length ? emptySlots({ ...cfg, horizonDays: 60 })[0] || null : null;
+  return { posts, nextSlot: next };
 }
 
 export async function rewriteDraft(post) {
