@@ -1,8 +1,18 @@
-/* DM Autopilot — monthly content calendar for Instagram and LinkedIn (the list stays as a tab). */
+/* Monthly content calendar (the list stays as a tab).
+   - In the Instagram Scheduler (window.DMA) it shows Instagram posts only.
+   - On the home page (window.CALHOST) it shows Instagram and LinkedIn together; creating or editing an Instagram post
+     opens the Instagram Scheduler, a LinkedIn post opens the LinkedIn composer. */
 (() => {
-  const D = window.DMA;
+  const D = window.DMA || window.CALHOST;
   if (!D) return;
-  const { $, $$, esc, ic, api, toast, run, views, main, postForm, POST_TYPES, popover } = D;
+  const { $, $$, esc, ic, api, toast, run, views, main, POST_TYPES, popover } = D;
+  const CFG = D.calendar || {};
+  const PLATS = CFG.platforms || ['instagram'];
+  const multi = PLATS.length > 1;
+  const HASH = CFG.hashBase || 'posts';
+  const igNew = (k, at) => (CFG.igNew ? CFG.igNew(k, at) : D.postForm(null, { at }));
+  const igEdit = (post) => (CFG.igEdit ? CFG.igEdit(post) : D.postForm(post));
+  const modalOpen = () => !!document.querySelector('#modal:not([hidden])');
 
   const pad = (n) => String(n).padStart(2, '0');
   const keyOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -44,21 +54,22 @@
   let month = null; // first day of the month on screen
   let selected = today();
   let mode = store.get('cal_mode', 'month');
-  let plat = store.get('cal_platform', 'all');
+  let plat = multi ? store.get('cal_platform', 'all') : 'instagram';
   let data = { posts: [], instagram: [], linkedin: [] };
 
-  /** "#posts/linkedin" (e.g. from the LinkedIn app) opens the calendar filtered to that platform. */
+  /** "#calendar/linkedin" (e.g. from the LinkedIn app) opens the home calendar filtered to that platform. */
   function readHashPlatform() {
-    const p = location.hash.slice(1).split('/')[1];
-    if (PLATFORMS[p]) plat = p;
+    if (!multi) return;
+    const [base, p] = location.hash.slice(1).split('/');
+    if (base === HASH && PLATFORMS[p]) plat = p;
   }
   function setPlatform(p) {
     plat = p;
     store.set('cal_platform', p);
-    history.replaceState(null, '', `#posts/${p}`);
+    history.replaceState(null, '', `#${HASH}/${p}`);
     views.posts();
   }
-  const shows = (p) => plat === 'all' || plat === p;
+  const shows = (p) => PLATS.includes(p) && (plat === 'all' || plat === p);
 
   /** A sensible default time for a new post on a given day: 10:00, or the next full hour if that has passed. */
   function defaultTime(k) {
@@ -110,11 +121,32 @@
     return Array.from({ length: 42 }, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return d; });
   }
 
+  /** The home calendar sends "#posts/new/2026-11-20" or "#posts/edit/12" here: open that day, then the post form. */
+  function takeDeepLink() {
+    if (multi) return null;
+    const [base, act, arg] = location.hash.slice(1).split('/');
+    if (base !== 'posts' || (act !== 'new' && act !== 'edit')) return null;
+    history.replaceState(null, '', '#posts');
+    if (act === 'new' && /^\d{4}-\d{2}-\d{2}$/.test(arg || '')) {
+      selected = arg;
+      const d = dayOf(arg);
+      month = new Date(d.getFullYear(), d.getMonth(), 1);
+    }
+    return { act, arg };
+  }
+  async function followDeepLink(link) {
+    if (!link) return;
+    if (link.act === 'new') return igNew(selected, (!isPast(selected) && defaultTime(selected)) || undefined);
+    const p = data.posts.find((x) => String(x.id) === link.arg) || (await api('/posts')).find((x) => String(x.id) === link.arg);
+    if (p && (p.status === 'scheduled' || p.status === 'failed')) igEdit(p);
+  }
+
   views.posts = async () => {
     const g = D.gen();
     readHashPlatform();
+    const link = takeDeepLink();
     if (!month) { const n = new Date(); month = new Date(n.getFullYear(), n.getMonth(), 1); }
-    if (mode === 'list') return renderList(g);
+    if (mode === 'list') { await renderList(g); return followDeepLink(link); }
     const days = gridDays();
     const from = days[0].getTime();
     const to = new Date(days[41].getFullYear(), days[41].getMonth(), days[41].getDate() + 1).getTime();
@@ -125,16 +157,17 @@
     if (g !== D.gen()) return;
     data = { ...ig, linkedin: lin.list, liError: lin.error };
     renderMonth(days);
-    D.setRefresh(setInterval(() => D.visible() && $('#modal').hidden && !$('.cal-chip.dragging') && run(views.posts)(), 60000));
+    D.setRefresh(setInterval(() => D.visible() && !modalOpen() && !$('.cal-chip.dragging') && run(views.posts)(), 60000));
+    await followDeepLink(link);
   };
 
   /** New post on a day: straight to the right composer, or ask which platform when showing both. */
   function newPost(k, anchor) {
     const at = defaultTime(k) ?? undefined;
-    const ig = () => postForm(null, { at });
+    const ig = () => igNew(k, at);
     const lin = () => location.assign(`/linkedin/?date=${encodeURIComponent(k)}`);
-    if (plat === 'instagram') return ig();
-    if (plat === 'linkedin') return lin();
+    if (!shows('linkedin')) return ig();
+    if (!shows('instagram')) return lin();
     popover(anchor, [{ cap: 'Schedule a post on' }, { icon: 'image', label: 'Instagram', onClick: ig }, { icon: 'linkedin', label: 'LinkedIn', onClick: lin }]);
   }
 
@@ -146,9 +179,9 @@
         <button class="icon-btn" type="button" id="cal-next" aria-label="Next month">${ic('right')}</button>
         <button class="btn small" type="button" id="cal-today">Today</button>
       </div>` : '<div class="cal-nav"><h2>All posts</h2></div>'}
-      <div class="seg" role="tablist" aria-label="Platform">
+      ${multi ? `<div class="seg" role="tablist" aria-label="Platform">
         ${Object.entries(PLATFORMS).map(([k, l]) => `<button type="button" role="tab" data-plat="${k}" aria-selected="${plat === k}" class="${plat === k ? 'on' : ''}">${k === 'all' ? '' : `<span class="cal-pf pf-${k}" aria-hidden="true"></span>`}${l}</button>`).join('')}
-      </div>
+      </div>` : ''}
       <div class="seg" role="tablist" aria-label="View">
         <button type="button" role="tab" data-mode="month" aria-selected="${mode === 'month'}" class="${mode === 'month' ? 'on' : ''}">${ic('calendar')}Month</button>
         <button type="button" role="tab" data-mode="list" aria-selected="${mode === 'list'}" class="${mode === 'list' ? 'on' : ''}">${ic('activity')}List</button>
@@ -169,11 +202,11 @@
   }
 
   const movable = (it) => (it.kind === 'post' || it.kind === 'li') && (it.status === 'scheduled' || it.status === 'failed');
-  const pf = (it) => `<span class="cal-pf pf-${it.platform}" title="${PLATFORMS[it.platform]}"></span>`;
+  const pf = (it) => (multi ? `<span class="cal-pf pf-${it.platform}" title="${PLATFORMS[it.platform]}"></span>` : '');
   const chip = (it) => {
     const st = STATUS[it.status];
     return `<div class="cal-chip st-${it.status}" ${movable(it) ? 'draggable="true"' : ''} data-kind="${it.kind}" data-id="${esc(it.id)}"
-      title="${esc(`${PLATFORMS[it.platform]} · ${st.label} · ${time(it.at)} · ${typeLabel(it)}${it.account ? ' · ' + it.account : ''}${it.caption ? ' · ' + it.caption.slice(0, 80) : ''}`)}" tabindex="0">
+      title="${esc(`${multi ? PLATFORMS[it.platform] + ' · ' : ''}${st.label} · ${time(it.at)} · ${typeLabel(it)}${it.account ? ' · ' + it.account : ''}${it.caption ? ' · ' + it.caption.slice(0, 80) : ''}`)}" tabindex="0">
       ${pf(it)}<span class="cal-st">${ic(st.icon)}</span><span class="cal-time">${time(it.at)}</span><span class="cal-cap">${esc((it.caption || typeLabel(it)).split('\n')[0])}</span></div>`;
   };
 
@@ -186,7 +219,7 @@
     const dows = Array.from({ length: 7 }, (_, i) => new Date(2024, 0, 1 + i).toLocaleDateString([], { weekday: 'short' }));
     if (keyOf(dayOf(selected)).slice(0, 7) !== keyOf(month).slice(0, 7) && !days.some((d) => keyOf(d) === selected)) selected = keyOf(month);
     const sum = [
-      ...(plat === 'all' ? ['instagram', 'linkedin'].map((p) => perPlat(p) ? `<span class="cal-key"><span class="cal-pf pf-${p}"></span>${perPlat(p)} ${PLATFORMS[p]}</span>` : '') : []),
+      ...(multi && plat === 'all' ? ['instagram', 'linkedin'].map((p) => perPlat(p) ? `<span class="cal-key"><span class="cal-pf pf-${p}"></span>${perPlat(p)} ${PLATFORMS[p]}</span>` : '') : []),
       ...['scheduled', 'published', 'instagram', 'failed'].map((s) => count(s) ? `<span class="cal-key st-${s}"><span class="cal-st">${ic(STATUS[s].icon)}</span>${count(s)} ${s === 'instagram' ? 'on Instagram' : STATUS[s].label.toLowerCase()}</span>` : ''),
     ].join('');
     main.innerHTML = `
@@ -209,7 +242,7 @@
               </div>`;
             }).join('')}
           </div>
-          <p class="cal-tip small muted">Click a day to see its posts, or <b>+</b> to schedule one. Drag a scheduled post to another day to move it (it keeps its time). Instagram and LinkedIn posts both move this way.</p>
+          <p class="cal-tip small muted">Click a day to see its posts, or <b>+</b> to schedule one. Drag a scheduled post to another day to move it (it keeps its time).${multi ? ' Instagram and LinkedIn posts both move this way.' : ''}</p>
         </section>
         <section class="card" id="cal-agenda"></section>
       </div>`;
@@ -235,12 +268,12 @@
         <div class="ag-row">
           <span class="ag-thumb">${it.thumb ? `<img src="${esc(it.thumb)}" alt="" loading="lazy">` : it.video ? `<video src="${esc(it.video)}" muted preload="metadata"></video>` : ic(it.platform === 'linkedin' ? 'linkedin' : 'image')}</span>
           <div class="grow">
-            <div class="ag-top"><b>${time(it.at)}</b><span class="cal-key">${pf(it)}${PLATFORMS[it.platform]}</span><span class="muted">${esc(typeLabel(it))}${it.account ? ` · ${esc(it.account)}` : ''}</span><span class="cal-key st-${it.status}"><span class="cal-st">${ic(STATUS[it.status].icon)}</span>${STATUS[it.status].label}</span>
+            <div class="ag-top"><b>${time(it.at)}</b>${multi ? `<span class="cal-key">${pf(it)}${PLATFORMS[it.platform]}</span>` : ''}<span class="muted">${esc(typeLabel(it))}${it.account ? ` · ${esc(it.account)}` : ''}</span><span class="cal-key st-${it.status}"><span class="cal-st">${ic(STATUS[it.status].icon)}</span>${STATUS[it.status].label}</span>
               ${it.likes !== undefined && it.likes !== null ? `<span class="muted small">${D.num(it.likes)} likes · ${D.num(it.comments)} comments</span>` : ''}</div>
             <div class="ag-cap">${esc(it.caption || 'No caption')}</div>
             ${it.error ? `<div class="small error">${esc(it.error)}</div>` : ''}
           </div>
-          <div class="row" style="flex-wrap:nowrap">
+          <div class="cal-actions">
             ${editBtn(it)}
             ${it.permalink ? `<a class="btn small" href="${esc(it.permalink)}" target="_blank" rel="noopener noreferrer">View ↗</a>` : ''}
             ${(it.kind === 'post' || it.kind === 'li') && it.status !== 'publishing' ? `<button class="btn small danger" type="button" data-del="${it.kind}:${it.id}" aria-label="Delete">${ic('trash')}</button>` : ''}
@@ -251,7 +284,7 @@
   }
 
   function bindPostActions(box) {
-    $$('[data-edit]', box).forEach((b) => (b.onclick = () => postForm(data.posts.find((p) => p.id == b.dataset.edit))));
+    $$('[data-edit]', box).forEach((b) => (b.onclick = () => igEdit(data.posts.find((p) => p.id == b.dataset.edit))));
     $$('[data-del]', box).forEach((b) => (b.onclick = run(async () => {
       const [kind, id] = b.dataset.del.split(':');
       const where = kind === 'li' ? 'LinkedIn' : 'Instagram';
@@ -279,7 +312,7 @@
         const it = find(c.dataset.kind, c.dataset.id);
         if (it && movable(it)) {
           if (it.kind === 'li') return location.assign(`/linkedin/?edit=${Number(it.id)}`);
-          return postForm(it.post);
+          return igEdit(it.post);
         }
       }
       const day = e.target.closest('[data-day]');
@@ -351,19 +384,19 @@
         ${header()}
         ${lin.error ? `<p class="small muted">LinkedIn posts could not be loaded: ${esc(lin.error)}</p>` : ''}
         ${rows.length ? `<div class="table-wrap"><table>
-          <tr><th>Media</th><th>Platform</th><th>Type</th><th>Caption</th><th>When</th><th>Status</th><th></th></tr>
+          <tr><th>Media</th>${multi ? '<th>Platform</th>' : ''}<th>Type</th><th>Caption</th><th>When</th><th>Status</th><th></th></tr>
           ${rows.map((it) => `<tr>
             <td><span class="ag-thumb">${it.thumb ? `<img src="${esc(it.thumb)}" alt="" loading="lazy">` : it.video ? `<video src="${esc(it.video)}" muted preload="metadata"></video>` : ic(it.platform === 'linkedin' ? 'linkedin' : 'image')}</span></td>
-            <td><span class="cal-key">${pf(it)}${PLATFORMS[it.platform]}</span>${it.account ? `<div class="small muted">${esc(it.account)}</div>` : ''}</td>
+            ${multi ? `<td><span class="cal-key">${pf(it)}${PLATFORMS[it.platform]}</span>${it.account ? `<div class="small muted">${esc(it.account)}</div>` : ''}</td>` : ''}
             <td>${esc(typeLabel(it))}${it.platform === 'instagram' && it.post.media.length > 1 ? ` · ${it.post.media.length}` : ''}</td>
             <td class="clip">${esc(String(it.caption || '').slice(0, 140))}${String(it.caption || '').length > 140 ? '…' : ''}</td>
             <td style="white-space:nowrap">${D.when(it.at)}</td>
             <td>${pill(it)}${it.error ? `<div class="small error">${esc(it.error)}</div>` : ''}</td>
-            <td><div class="row" style="flex-wrap:nowrap">${editBtn(it)}${it.status !== 'publishing' ? `<button class="btn small danger" data-del="${it.kind}:${it.id}" type="button" aria-label="Delete">${ic('trash')}</button>` : ''}</div></td>
+            <td><div class="cal-actions">${editBtn(it)}${it.status !== 'publishing' ? `<button class="btn small danger" data-del="${it.kind}:${it.id}" type="button" aria-label="Delete">${ic('trash')}</button>` : ''}</div></td>
           </tr>`).join('')}</table></div>` : '<div class="empty">Nothing scheduled yet.</div>'}
       </section>`;
     bindHeader();
     bindPostActions(main);
-    D.setRefresh(setInterval(() => D.visible() && $('#modal').hidden && run(views.posts)(), 30000));
+    D.setRefresh(setInterval(() => D.visible() && !modalOpen() && run(views.posts)(), 30000));
   }
 })();

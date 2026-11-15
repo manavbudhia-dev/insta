@@ -13,9 +13,13 @@
     calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
     linkedin: '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 10v7M8 7v.01M12 17v-4a2 2 0 0 1 4 0v4M12 10v7"/>',
     arrow: '<path d="M5 12h14m-7-7 7 7-7 7"/>',
+    refresh: '<path d="M21 12a9 9 0 0 1-15.5 6.2L3 16m0 5v-5h5M3 12a9 9 0 0 1 15.5-6.2L21 8m0-5v5h-5"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>', x: '<path d="M18 6 6 18M6 6l12 12"/>', right: '<path d="m9 18 6-6-6-6"/>', plus: '<path d="M5 12h14M12 5v14"/>',
+    image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3-3-9 9"/>',
+    activity: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>', trash: '<path d="M3 6h18M8 6V4h8v2m-9 0 1 14h8l1-14"/>',
     alert: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"/>',
   };
-  const ic = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${P[n]}</svg>`;
+  const ic = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${P[n] || ''}</svg>`;
   const LOGO = '<svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M13.5 1.5 4 13.2h6.2L9 22.5l10-12.4h-6.3z" fill="url(#g-bolt)" stroke="url(#g-bolt)" stroke-width="1.2" stroke-linejoin="round"/></svg>';
   document.querySelectorAll('[data-logo]').forEach((el) => (el.innerHTML = LOGO));
 
@@ -34,6 +38,69 @@
     return diff === 0 ? `Today, ${t}` : diff === 1 ? `Tomorrow, ${t}` : `${d.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })}, ${t}`;
   };
   const clip = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+
+  // ---------- calendar host ----------
+  // calendar.js runs on the Instagram dashboard's helpers; these are the few it needs, for the home page.
+  let toastTimer;
+  function toast(msg, bad = false) {
+    const t = $('#toast');
+    t.textContent = msg;
+    t.className = 'toast' + (bad ? ' bad' : '');
+    t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => (t.hidden = true), 3500);
+  }
+  let pop = null;
+  const closePop = () => { pop?.remove(); pop = null; };
+  function popover(anchor, items) {
+    closePop();
+    pop = document.createElement('div');
+    pop.className = 'pop';
+    pop.setAttribute('role', 'menu');
+    pop.innerHTML = items.map((it, i) => (it.cap ? `<div class="cap">${esc(it.cap)}</div>` : `<button role="menuitem" type="button" data-i="${i}">${it.icon ? ic(it.icon) : ''}${esc(it.label)}</button>`)).join('');
+    document.body.appendChild(pop);
+    const r = anchor.getBoundingClientRect();
+    pop.style.left = Math.max(8, Math.min(innerWidth - pop.offsetWidth - 8, r.right - pop.offsetWidth)) + 'px';
+    pop.style.top = Math.min(r.bottom + 8, innerHeight - pop.offsetHeight - 8) + 'px';
+    pop.querySelectorAll('button[data-i]').forEach((b) => (b.onclick = () => { const it = items[Number(b.dataset.i)]; closePop(); it.onClick(); }));
+    pop.querySelector('button')?.focus();
+  }
+  document.addEventListener('mousedown', (e) => { if (pop && !pop.contains(e.target)) closePop(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePop(); });
+  addEventListener('resize', closePop);
+  async function api(path, opts = {}) {
+    const r = await fetch('/api' + path, {
+      method: opts.method || 'GET',
+      headers: opts.body ? { 'Content-Type': 'application/json' } : {},
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+    });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 401) showLogin();
+    if (!r.ok) throw new Error(j.error || 'Something went wrong');
+    return j;
+  }
+  let calTimer;
+  const calViews = {};
+  window.CALHOST = {
+    $, $$: (sel, root = document) => [...root.querySelectorAll(sel)], esc, ic, api, toast, popover, views: calViews,
+    run: (fn) => (...a) => Promise.resolve().then(() => fn(...a)).catch((e) => toast(e.message, true)),
+    main: document.getElementById('calendar'),
+    POST_TYPES: { IMAGE: 'Photo', CAROUSEL: 'Carousel', REELS: 'Reel', STORIES: 'Story' },
+    gen: () => 0, setRefresh: (t) => { clearInterval(calTimer); calTimer = t; }, visible: () => document.visibilityState === 'visible',
+    num, when: (ms) => (ms ? new Date(ms).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '—'),
+    calendar: {
+      platforms: ['instagram', 'linkedin'],
+      hashBase: 'calendar',
+      // Instagram posts are created and edited in the Instagram Scheduler, which opens its form from these links.
+      igNew: (day) => location.assign(`/scheduler/#posts/new/${day}`),
+      igEdit: (post) => location.assign(`/scheduler/#posts/edit/${post.id}`),
+    },
+  };
+  async function loadCalendar() {
+    if (!calViews.posts) return;
+    try { await calViews.posts(); } catch (e) { $('#calendar').innerHTML = `<div class="panel empty">${esc(e.message)}</div>`; }
+    if (location.hash.startsWith('#calendar')) $('#cal-home').scrollIntoView({ block: 'start' });
+  }
 
   // ---------- login ----------
   function showLogin() { $('#hub').hidden = true; $('#login').hidden = false; }
@@ -153,7 +220,7 @@
     if (next && /^\/(dm|scheduler|linkedin)\/[\w./?=&#-]*$/.test(next)) return location.replace(next);
     $('#login').hidden = true;
     $('#hub').hidden = false;
-    await render();
+    await Promise.all([render(), loadCalendar()]);
   }
   setInterval(() => { if (!$('#hub').hidden && document.visibilityState === 'visible') render(); }, 60000);
   start();

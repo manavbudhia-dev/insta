@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/home.css">
+  <link rel="stylesheet" href="/calendar.css">
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
@@ -44,6 +45,11 @@
 
     <section class="apps" id="apps" aria-label="Apps"></section>
 
+    <section class="cal-home" id="cal-home" aria-labelledby="cal-home-title">
+      <div class="sec-head"><h2 id="cal-home-title">Content calendar</h2><span class="muted small">Instagram and LinkedIn posts together</span></div>
+      <div id="calendar"><div class="skeleton" style="height:420px"></div></div>
+    </section>
+
     <section class="pair">
       <div class="panel">
         <div class="panel-head"><h2>Needs attention</h2></div>
@@ -56,6 +62,8 @@
     </section>
   </div>
 
+  <div id="toast" class="toast" hidden></div>
   <script src="/home.js"></script>
+  <script src="/calendar.js"></script>
 </body>
 </html>

@@ -130,6 +130,9 @@ test('signing out from the LinkedIn section ends the dashboard session too', asy
 test('the launcher at / and the two Instagram mini apps at /dm/ and /scheduler/', async () => {
   const home = await fetch(APP + '/');
   assert.equal(home.status, 200);
+  const homeHtml = await home.clone().text();
+  assert.match(homeHtml, /src="\/calendar.js"/); // the shared content calendar lives on the home page
+  assert.match(homeHtml, /href="\/calendar.css"/);
   assert.match(home.headers.get('content-security-policy')!, /script-src 'self';/);
   for (const p of ['/dm/', '/scheduler/', '/dm', '/scheduler']) {
     const r = await fetch(APP + p);

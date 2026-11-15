@@ -8,13 +8,13 @@ One self-hosted platform, one login, one deploy:
   LinkedIn's official Posts API, with a queue, analytics, team members and optional AI-written drafts.
   See [LinkedIn scheduler](#linkedin-scheduler).
 
-Sign in once with `ADMIN_PASSWORD` on the **home page** (`/`). It shows one card per mini app with live numbers, a
-"Needs attention" list and the next scheduled posts on all platforms:
+Sign in once with `ADMIN_PASSWORD` on the **home page** (`/`). It shows one card per mini app with live numbers, the
+content calendar for Instagram and LinkedIn, a "Needs attention" list and the next scheduled posts on all platforms:
 
 | Mini app | Address | What's in it |
 |---|---|---|
 | Instagram DM Automation | `/dm/` | Overview, automations, flows, inbox, insights, activity, settings |
-| Instagram Scheduler | `/scheduler/` | Content calendar (Instagram + LinkedIn) and insights |
+| Instagram Scheduler | `/scheduler/` | Instagram content calendar and insights |
 | LinkedIn Scheduler | `/linkedin/` | Schedule, queue, analytics, accounts, auto content, settings |
 
 Every mini app has **All apps** to go back home. Old links such as `/#inbox` still work and open the right mini app.
@@ -165,10 +165,12 @@ DM, story reply and story mention triggers arrive by webhook and are instant.
 
 ## Calendar and Insights
 
-**Calendar** shows each month with everything planned and published, on **Instagram and LinkedIn** together.
-Use the *All / Instagram / LinkedIn* switch to filter. LinkedIn posts can be dragged to another day just like
-Instagram ones, *Edit* opens the LinkedIn composer, and **+** on a day asks which platform to post on. The LinkedIn app
-has a **Calendar** tab that opens it filtered to LinkedIn (`/scheduler/#posts/linkedin`).
+The **home page** has the shared content calendar: **Instagram and LinkedIn** together, with an
+*All / Instagram / LinkedIn* switch. Drag any scheduled post to another day to move it. **+** on a day asks which
+platform; Instagram posts open in the Instagram Scheduler's form, LinkedIn posts in the LinkedIn composer. The LinkedIn
+app's **Calendar** tab opens it filtered to LinkedIn (`/#calendar/linkedin`).
+
+The **Instagram Scheduler**'s own calendar shows Instagram posts only:
 
 - Click **+** on a day (or a day, then *Schedule on this day*) to schedule a post for it.
 - Drag a scheduled post to another day to move it; it keeps its time of day.
