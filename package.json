@@ -1,9 +1,9 @@
 {
-  "name": "insta-automation",
+  "name": "social-autopilot",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Self-hosted Instagram DM automation and post scheduler (official Instagram API)",
+  "description": "Self-hosted social media platform: Instagram DM automation + post scheduler and LinkedIn post scheduler (official APIs)",
   "engines": {
     "node": ">=22"
   },
@@ -16,8 +16,12 @@
     "check": "node scripts/setup.mjs check"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.8.0",
+    "bcryptjs": "^2.4.3",
     "better-sqlite3": "^12.2.0",
+    "cookie-parser": "^1.4.7",
     "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
     "sharp": "^0.34.3"
   },

@@ -1,8 +1,19 @@
-/* DM Autopilot — monthly content calendar (replaces the list-only scheduler; the list stays as a tab). */
+/* Monthly content calendar (the list stays as a tab).
+   - In the Instagram Scheduler (window.DMA) it shows Instagram posts only.
+   - On the home page (window.CALHOST) it shows Instagram and LinkedIn together; creating or editing an Instagram post
+     opens the Instagram Scheduler, a LinkedIn post opens the LinkedIn composer. */
 (() => {
-  const D = window.DMA;
+  const D = window.DMA || window.CALHOST;
   if (!D) return;
-  const { $, $$, esc, ic, api, toast, run, views, main, postForm, POST_TYPES } = D;
+  const { $, $$, esc, ic, api, toast, run, views, main, POST_TYPES, popover } = D;
+  const CFG = D.calendar || {};
+  const PLATS = CFG.platforms || ['instagram'];
+  const multi = PLATS.length > 1;
+  const HASH = CFG.hashBase || 'posts';
+  const igNew = (k, at) => (CFG.igNew ? CFG.igNew(k, at) : D.postForm(null, { at }));
+  const igEdit = (post) => (CFG.igEdit ? CFG.igEdit(post) : D.postForm(post));
+  const modalOpen = () => !!document.querySelector('#modal:not([hidden])');
+  const changed = () => CFG.onChange?.(); // lets the home page refresh its other panels after an edit here
 
   const pad = (n) => String(n).padStart(2, '0');
   const keyOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -13,18 +24,54 @@
     publishing: { label: 'Publishing', icon: 'refresh' },
     published: { label: 'Published', icon: 'check' },
     failed: { label: 'Failed', icon: 'x' },
+    draft: { label: 'Needs approval', icon: 'edit' }, // AI-written LinkedIn post waiting for your OK
     instagram: { label: 'On Instagram', icon: 'image' },
   };
+  const LI_TYPES = { text: 'Text', image: 'Image', video: 'Video', poll: 'Poll' };
+  const PLATFORMS = { all: 'All', instagram: 'Instagram', linkedin: 'LinkedIn' };
+  const typeLabel = (it) => (it.platform === 'linkedin' ? LI_TYPES[it.type] : POST_TYPES[it.type]) || it.type || 'Post';
   const store = {
     get: (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } },
     set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } },
+  };
+
+  // The LinkedIn scheduler lives at /linkedin; the platform login signs you in there too.
+  async function li(path, opts = {}) {
+    const res = await fetch('/linkedin/api' + path, {
+      method: opts.method || 'GET',
+      headers: opts.body ? { 'Content-Type': 'application/json' } : {},
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(j.error || `LinkedIn answered ${res.status}`);
+    return j;
+  }
+  const liUrl = (urn) => (urn ? `https://www.linkedin.com/feed/update/${encodeURIComponent(urn)}/` : '');
+  const liThumb = (p) => {
+    if (p.status === 'published' || p.type !== 'image') return ''; // media is deleted from the server once LinkedIn has it
+    try { const m = JSON.parse(p.media_json || '[]')[0]; return m ? `/linkedin/api/media/${Number(m.id)}` : ''; } catch { return ''; }
   };
 
   const today = () => keyOf(new Date());
   let month = null; // first day of the month on screen
   let selected = today();
   let mode = store.get('cal_mode', 'month');
-  let data = { posts: [], instagram: [] };
+  let plat = multi ? store.get('cal_platform', 'all') : 'instagram';
+  let data = { posts: [], instagram: [], linkedin: [] };
+
+  /** "#calendar/linkedin" (e.g. from the LinkedIn app) opens the home calendar filtered to that platform. */
+  function readHashPlatform() {
+    if (!multi) return;
+    const [base, p] = location.hash.slice(1).split('/');
+    if (base === HASH && PLATFORMS[p]) plat = p;
+  }
+  function setPlatform(p) {
+    plat = p;
+    store.set('cal_platform', p);
+    history.replaceState(null, '', `#${HASH}/${p}`);
+    views.posts();
+  }
+  const shows = (p) => PLATS.includes(p) && (plat === 'all' || plat === p);
 
   /** A sensible default time for a new post on a given day: 10:00, or the next full hour if that has passed. */
   function defaultTime(k) {
@@ -38,14 +85,24 @@
   }
   const isPast = (k) => k < today();
 
-  /** Everything shown on the calendar, as one list: posts made here and posts made directly on Instagram. */
+  const fromIg = (p) => ({
+    platform: 'instagram', kind: 'post', id: p.id, at: p.status === 'published' && p.published_at ? p.published_at : p.scheduled_at, status: p.status, type: p.type,
+    caption: p.caption, thumb: p.media[0]?.kind === 'image' ? p.media[0].url : '', video: p.media[0]?.kind === 'video' ? p.media[0].url : '',
+    error: p.error, post: p, permalink: p.instagram?.permalink || '', likes: p.instagram?.likes, comments: p.instagram?.comments,
+  });
+  const fromLi = (p) => ({
+    platform: 'linkedin', kind: 'li', id: p.id, at: p.status === 'published' && p.published_at ? p.published_at : p.when_at, status: p.status, type: p.type,
+    caption: p.text, thumb: liThumb(p), error: p.error, post: p, permalink: liUrl(p.urn), account: p.account_name,
+  });
+
+  /** Everything shown on the calendar, as one list: posts made here, posts made directly on Instagram, and LinkedIn posts. */
   function items() {
-    const out = data.posts.map((p) => ({
-      kind: 'post', id: p.id, at: p.status === 'published' && p.published_at ? p.published_at : p.scheduled_at, status: p.status, type: p.type,
-      caption: p.caption, thumb: p.media[0]?.kind === 'image' ? p.media[0].url : '', video: p.media[0]?.kind === 'video' ? p.media[0].url : '',
-      error: p.error, post: p, permalink: p.instagram?.permalink || '', likes: p.instagram?.likes, comments: p.instagram?.comments,
-    }));
-    for (const m of data.instagram) out.push({ kind: 'ig', id: m.id, at: m.at, status: 'instagram', type: m.type, caption: m.caption, thumb: m.thumb, permalink: m.permalink, likes: m.likes, comments: m.comments });
+    const out = [];
+    if (shows('instagram')) {
+      out.push(...data.posts.map(fromIg));
+      for (const m of data.instagram) out.push({ platform: 'instagram', kind: 'ig', id: m.id, at: m.at, status: 'instagram', type: m.type, caption: m.caption, thumb: m.thumb, permalink: m.permalink, likes: m.likes, comments: m.comments });
+    }
+    if (shows('linkedin')) out.push(...data.linkedin.map(fromLi));
     return out.sort((a, b) => a.at - b.at);
   }
   const byDay = () => {
@@ -57,6 +114,7 @@
     }
     return map;
   };
+  const find = (kind, id) => items().find((it) => it.kind === kind && String(it.id) === String(id));
 
   function gridDays() {
     const first = new Date(month);
@@ -65,18 +123,55 @@
     return Array.from({ length: 42 }, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return d; });
   }
 
+  /** The home calendar sends "#posts/new/2026-11-20" or "#posts/edit/12" here: open that day, then the post form. */
+  function takeDeepLink() {
+    if (multi) return null;
+    const [base, act, arg] = location.hash.slice(1).split('/');
+    if (base !== 'posts' || (act !== 'new' && act !== 'edit')) return null;
+    history.replaceState(null, '', '#posts');
+    if (act === 'new' && /^\d{4}-\d{2}-\d{2}$/.test(arg || '')) {
+      selected = arg;
+      const d = dayOf(arg);
+      month = new Date(d.getFullYear(), d.getMonth(), 1);
+    }
+    return { act, arg };
+  }
+  async function followDeepLink(link) {
+    if (!link) return;
+    if (link.act === 'new') return igNew(selected, (!isPast(selected) && defaultTime(selected)) || undefined);
+    const p = data.posts.find((x) => String(x.id) === link.arg) || (await api('/posts')).find((x) => String(x.id) === link.arg);
+    if (p && (p.status === 'scheduled' || p.status === 'failed')) igEdit(p);
+  }
+
   views.posts = async () => {
     const g = D.gen();
+    readHashPlatform();
+    const link = takeDeepLink();
     if (!month) { const n = new Date(); month = new Date(n.getFullYear(), n.getMonth(), 1); }
-    if (mode === 'list') return renderList(g);
+    if (mode === 'list') { await renderList(g); return followDeepLink(link); }
     const days = gridDays();
     const from = days[0].getTime();
     const to = new Date(days[41].getFullYear(), days[41].getMonth(), days[41].getDate() + 1).getTime();
-    data = await api(`/calendar?from=${from}&to=${to}`);
+    const [ig, lin] = await Promise.all([
+      shows('instagram') ? api(`/calendar?from=${from}&to=${to}`) : { posts: [], instagram: [] },
+      shows('linkedin') ? li(`/calendar?from=${from}&to=${to}`).then((r) => ({ list: r }), (e) => ({ list: [], error: e.message })) : { list: [] },
+    ]);
     if (g !== D.gen()) return;
+    data = { ...ig, linkedin: lin.list, liError: lin.error };
     renderMonth(days);
-    D.setRefresh(setInterval(() => D.visible() && $('#modal').hidden && !$('.cal-chip.dragging') && run(views.posts)(), 60000));
+    D.setRefresh(setInterval(() => D.visible() && !modalOpen() && !$('.cal-chip.dragging') && run(views.posts)(), 60000));
+    await followDeepLink(link);
   };
+
+  /** New post on a day: straight to the right composer, or ask which platform when showing both. */
+  function newPost(k, anchor) {
+    const at = defaultTime(k) ?? undefined;
+    const ig = () => igNew(k, at);
+    const lin = () => location.assign(`/linkedin/?date=${encodeURIComponent(k)}`);
+    if (!shows('linkedin')) return ig();
+    if (!shows('instagram')) return lin();
+    popover(anchor, [{ cap: 'Schedule a post on' }, { icon: 'image', label: 'Instagram', onClick: ig }, { icon: 'linkedin', label: 'LinkedIn', onClick: lin }]);
+  }
 
   function header(extra = '') {
     return `<div class="cal-head">
@@ -86,6 +181,9 @@
         <button class="icon-btn" type="button" id="cal-next" aria-label="Next month">${ic('right')}</button>
         <button class="btn small" type="button" id="cal-today">Today</button>
       </div>` : '<div class="cal-nav"><h2>All posts</h2></div>'}
+      ${multi ? `<div class="seg" role="tablist" aria-label="Platform">
+        ${Object.entries(PLATFORMS).map(([k, l]) => `<button type="button" role="tab" data-plat="${k}" aria-selected="${plat === k}" class="${plat === k ? 'on' : ''}">${k === 'all' ? '' : `<span class="cal-pf pf-${k}" aria-hidden="true"></span>`}${l}</button>`).join('')}
+      </div>` : ''}
       <div class="seg" role="tablist" aria-label="View">
         <button type="button" role="tab" data-mode="month" aria-selected="${mode === 'month'}" class="${mode === 'month' ? 'on' : ''}">${ic('calendar')}Month</button>
         <button type="button" role="tab" data-mode="list" aria-selected="${mode === 'list'}" class="${mode === 'list' ? 'on' : ''}">${ic('activity')}List</button>
@@ -96,7 +194,8 @@
   }
   function bindHeader() {
     $$('[data-mode]').forEach((b) => (b.onclick = () => { mode = b.dataset.mode; store.set('cal_mode', mode); views.posts(); }));
-    $('#cal-new').onclick = () => postForm(null, { at: defaultTime(isPast(selected) ? today() : selected) ?? undefined });
+    $$('[data-plat]').forEach((b) => (b.onclick = () => setPlatform(b.dataset.plat)));
+    $('#cal-new').onclick = (e) => newPost(isPast(selected) || !defaultTime(selected) ? today() : selected, e.currentTarget);
     if ($('#cal-prev')) {
       $('#cal-prev').onclick = () => { month = new Date(month.getFullYear(), month.getMonth() - 1, 1); views.posts(); };
       $('#cal-next').onclick = () => { month = new Date(month.getFullYear(), month.getMonth() + 1, 1); views.posts(); };
@@ -104,12 +203,13 @@
     }
   }
 
+  const movable = (it) => (it.kind === 'post' || it.kind === 'li') && (it.status === 'scheduled' || it.status === 'failed');
+  const pf = (it) => (multi ? `<span class="cal-pf pf-${it.platform}" title="${PLATFORMS[it.platform]}"></span>` : '');
   const chip = (it) => {
     const st = STATUS[it.status];
-    const movable = it.kind === 'post' && (it.status === 'scheduled' || it.status === 'failed');
-    return `<div class="cal-chip st-${it.status}" ${movable ? 'draggable="true"' : ''} data-${it.kind === 'post' ? 'pid' : 'ig'}="${esc(it.id)}"
-      title="${esc(`${st.label} · ${time(it.at)} · ${POST_TYPES[it.type] || it.type}${it.caption ? ' · ' + it.caption.slice(0, 80) : ''}`)}" tabindex="0">
-      <span class="cal-st">${ic(st.icon)}</span><span class="cal-time">${time(it.at)}</span><span class="cal-cap">${esc((it.caption || POST_TYPES[it.type] || 'Post').split('\n')[0])}</span></div>`;
+    return `<div class="cal-chip st-${it.status}" ${movable(it) ? 'draggable="true"' : ''} data-kind="${it.kind}" data-id="${esc(it.id)}"
+      title="${esc(`${multi ? PLATFORMS[it.platform] + ' · ' : ''}${st.label} · ${time(it.at)} · ${typeLabel(it)}${it.account ? ' · ' + it.account : ''}${it.caption ? ' · ' + it.caption.slice(0, 80) : ''}`)}" tabindex="0">
+      ${pf(it)}<span class="cal-st">${ic(st.icon)}</span><span class="cal-time">${time(it.at)}</span><span class="cal-cap">${esc((it.caption || typeLabel(it)).split('\n')[0])}</span></div>`;
   };
 
   function renderMonth(days) {
@@ -117,13 +217,19 @@
     const m = month.getMonth();
     const inMonth = items().filter((it) => new Date(it.at).getMonth() === m && new Date(it.at).getFullYear() === month.getFullYear());
     const count = (s) => inMonth.filter((it) => it.status === s).length;
+    const perPlat = (p) => inMonth.filter((it) => it.platform === p).length;
     const dows = Array.from({ length: 7 }, (_, i) => new Date(2024, 0, 1 + i).toLocaleDateString([], { weekday: 'short' }));
     if (keyOf(dayOf(selected)).slice(0, 7) !== keyOf(month).slice(0, 7) && !days.some((d) => keyOf(d) === selected)) selected = keyOf(month);
+    const sum = [
+      ...(multi && plat === 'all' ? ['instagram', 'linkedin'].map((p) => perPlat(p) ? `<span class="cal-key"><span class="cal-pf pf-${p}"></span>${perPlat(p)} ${PLATFORMS[p]}</span>` : '') : []),
+      ...['scheduled', 'draft', 'published', 'instagram', 'failed'].map((s) => count(s) ? `<span class="cal-key st-${s}"><span class="cal-st">${ic(STATUS[s].icon)}</span>${count(s)} ${s === 'instagram' ? 'on Instagram' : STATUS[s].label.toLowerCase()}</span>` : ''),
+    ].join('');
     main.innerHTML = `
       <div class="stack">
         <section class="card cal">
-          ${header(`<div class="cal-sum">${['scheduled', 'published', 'instagram', 'failed'].map((s) => count(s) ? `<span class="cal-key st-${s}"><span class="cal-st">${ic(STATUS[s].icon)}</span>${count(s)} ${s === 'instagram' ? 'on Instagram' : STATUS[s].label.toLowerCase()}</span>` : '').join('')}</div>`)}
+          ${header(`<div class="cal-sum">${sum}</div>`)}
           ${data.error ? `<p class="small muted">Posts made directly on Instagram could not be loaded: ${esc(data.error)}</p>` : ''}
+          ${data.liError ? `<p class="small muted">LinkedIn posts could not be loaded: ${esc(data.liError)}</p>` : ''}
           <div class="cal-grid" role="grid" aria-labelledby="cal-title">
             ${dows.map((d) => `<div class="cal-dow" role="columnheader">${esc(d)}</div>`).join('')}
             ${days.map((d) => {
@@ -138,7 +244,7 @@
               </div>`;
             }).join('')}
           </div>
-          <p class="cal-tip small muted">Click a day to see its posts, or <b>+</b> to schedule one. Drag a scheduled post to another day to move it (it keeps its time).</p>
+          <p class="cal-tip small muted">Click a day to see its posts, or <b>+</b> to schedule one. Drag a scheduled post to another day to move it (it keeps its time).${multi ? ' Instagram and LinkedIn posts both move this way.' : ''}</p>
         </section>
         <section class="card" id="cal-agenda"></section>
       </div>`;
@@ -146,6 +252,13 @@
     renderAgenda(map);
     bindGrid(map);
   }
+
+  const editBtn = (it) => {
+    if (it.kind === 'li' && it.status === 'draft') return `<button class="btn small primary" type="button" data-approve="${Number(it.id)}">Approve</button><a class="btn small" href="/linkedin/?edit=${Number(it.id)}">Edit</a>`;
+    if (!movable(it)) return '';
+    const label = it.status === 'failed' ? 'Retry / edit' : 'Edit';
+    return it.kind === 'li' ? `<a class="btn small" href="/linkedin/?edit=${Number(it.id)}">${label}</a>` : `<button class="btn small" type="button" data-edit="${it.id}">${label}</button>`;
+  };
 
   function renderAgenda(map) {
     const box = $('#cal-agenda');
@@ -156,30 +269,40 @@
         ${!isPast(selected) && defaultTime(selected) ? `<button class="btn" type="button" id="ag-new">${ic('plus')}Schedule on this day</button>` : ''}</div>
       ${list.map((it) => `
         <div class="ag-row">
-          <span class="ag-thumb">${it.thumb ? `<img src="${esc(it.thumb)}" alt="" loading="lazy">` : it.video ? `<video src="${esc(it.video)}" muted preload="metadata"></video>` : ic('image')}</span>
+          <span class="ag-thumb">${it.thumb ? `<img src="${esc(it.thumb)}" alt="" loading="lazy">` : it.video ? `<video src="${esc(it.video)}" muted preload="metadata"></video>` : ic(it.platform === 'linkedin' ? 'linkedin' : 'image')}</span>
           <div class="grow">
-            <div class="ag-top"><b>${time(it.at)}</b><span class="muted">${POST_TYPES[it.type] || it.type}</span><span class="cal-key st-${it.status}"><span class="cal-st">${ic(STATUS[it.status].icon)}</span>${STATUS[it.status].label}</span>
+            <div class="ag-top"><b>${time(it.at)}</b>${multi ? `<span class="cal-key">${pf(it)}${PLATFORMS[it.platform]}</span>` : ''}<span class="muted">${esc(typeLabel(it))}${it.account ? ` · ${esc(it.account)}` : ''}</span><span class="cal-key st-${it.status}"><span class="cal-st">${ic(STATUS[it.status].icon)}</span>${STATUS[it.status].label}</span>
               ${it.likes !== undefined && it.likes !== null ? `<span class="muted small">${D.num(it.likes)} likes · ${D.num(it.comments)} comments</span>` : ''}</div>
             <div class="ag-cap">${esc(it.caption || 'No caption')}</div>
             ${it.error ? `<div class="small error">${esc(it.error)}</div>` : ''}
           </div>
-          <div class="row" style="flex-wrap:nowrap">
-            ${it.kind === 'post' && (it.status === 'scheduled' || it.status === 'failed') ? `<button class="btn small" type="button" data-edit="${it.id}">${it.status === 'failed' ? 'Retry / edit' : 'Edit'}</button>` : ''}
+          <div class="cal-actions">
+            ${editBtn(it)}
             ${it.permalink ? `<a class="btn small" href="${esc(it.permalink)}" target="_blank" rel="noopener noreferrer">View ↗</a>` : ''}
-            ${it.kind === 'post' && it.status !== 'publishing' ? `<button class="btn small danger" type="button" data-del="${it.id}" aria-label="Delete">${ic('trash')}</button>` : ''}
+            ${(it.kind === 'post' || it.kind === 'li') && it.status !== 'publishing' ? `<button class="btn small danger" type="button" data-del="${it.kind}:${it.id}" aria-label="Delete">${ic('trash')}</button>` : ''}
           </div>
         </div>`).join('')}`;
-    if ($('#ag-new')) $('#ag-new').onclick = () => postForm(null, { at: defaultTime(selected) });
+    if ($('#ag-new')) $('#ag-new').onclick = (e) => newPost(selected, e.currentTarget);
     bindPostActions(box);
   }
 
   function bindPostActions(box) {
-    $$('[data-edit]', box).forEach((b) => (b.onclick = () => postForm(data.posts.find((p) => p.id == b.dataset.edit))));
+    $$('[data-edit]', box).forEach((b) => (b.onclick = () => igEdit(data.posts.find((p) => p.id == b.dataset.edit))));
+    $$('[data-approve]', box).forEach((b) => (b.onclick = run(async () => {
+      const r = await li(`/auto/drafts/${b.dataset.approve}/approve`, { method: 'POST' });
+      toast(`Approved. It will post ${new Date(r.when_at).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}`);
+      await views.posts();
+      changed();
+    })));
     $$('[data-del]', box).forEach((b) => (b.onclick = run(async () => {
-      if (!confirm('Remove this post from the calendar? A post that is already published stays on Instagram.')) return;
-      await api(`/posts/${b.dataset.del}`, { method: 'DELETE' });
+      const [kind, id] = b.dataset.del.split(':');
+      const where = kind === 'li' ? 'LinkedIn' : 'Instagram';
+      if (!confirm(`Remove this post from the calendar? A post that is already published stays on ${where}.`)) return;
+      if (kind === 'li') await li(`/posts/${id}`, { method: 'DELETE' });
+      else await api(`/posts/${id}`, { method: 'DELETE' });
       toast('Post removed');
-      views.posts();
+      await views.posts();
+      changed();
     })));
   }
 
@@ -193,11 +316,14 @@
     };
     grid.addEventListener('click', (e) => {
       const add = e.target.closest('[data-add]');
-      if (add) return postForm(null, { at: defaultTime(add.dataset.add) });
+      if (add) return newPost(add.dataset.add, add);
       const c = e.target.closest('.cal-chip');
-      if (c?.dataset.pid) {
-        const p = data.posts.find((x) => x.id == c.dataset.pid);
-        if (p && (p.status === 'scheduled' || p.status === 'failed')) return postForm(p);
+      if (c) {
+        const it = find(c.dataset.kind, c.dataset.id);
+        if (it && movable(it)) {
+          if (it.kind === 'li') return location.assign(`/linkedin/?edit=${Number(it.id)}`);
+          return igEdit(it.post);
+        }
       }
       const day = e.target.closest('[data-day]');
       if (day) select(day.dataset.day);
@@ -207,19 +333,19 @@
       if (c && e.key === 'Enter') c.click();
     });
     // Drag a scheduled post onto another day: same time of day, new date.
-    let dragId = null;
+    let drag = null;
     grid.addEventListener('dragstart', (e) => {
       const c = e.target.closest('.cal-chip[draggable]');
       if (!c) return;
-      dragId = c.dataset.pid;
+      drag = find(c.dataset.kind, c.dataset.id);
       c.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', dragId);
+      e.dataTransfer.setData('text/plain', `${c.dataset.kind}:${c.dataset.id}`);
     });
-    grid.addEventListener('dragend', () => { dragId = null; $$('.cal-chip.dragging, .cal-day.drop', grid).forEach((x) => x.classList.remove('dragging', 'drop')); });
+    grid.addEventListener('dragend', () => { drag = null; $$('.cal-chip.dragging, .cal-day.drop', grid).forEach((x) => x.classList.remove('dragging', 'drop')); });
     grid.addEventListener('dragover', (e) => {
       const day = e.target.closest('.cal-day');
-      if (!dragId || !day || isPast(day.dataset.day)) return;
+      if (!drag || !day || isPast(day.dataset.day)) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
       $$('.cal-day.drop', grid).forEach((x) => x !== day && x.classList.remove('drop'));
@@ -227,10 +353,10 @@
     });
     grid.addEventListener('drop', (e) => {
       const day = e.target.closest('.cal-day');
-      const p = data.posts.find((x) => x.id == dragId);
-      if (!day || !p || isPast(day.dataset.day)) return;
+      const it = drag;
+      if (!day || !it || isPast(day.dataset.day)) return;
       e.preventDefault();
-      const old = new Date(p.scheduled_at);
+      const old = new Date(it.at);
       const next = dayOf(day.dataset.day);
       next.setHours(old.getHours(), old.getMinutes(), 0, 0);
       let at = next.getTime();
@@ -241,37 +367,47 @@
         at = n.getTime();
         note = ` at ${time(at)} (that time had already passed)`;
       }
-      if (keyOf(new Date(at)) === keyOf(old) && Math.abs(at - p.scheduled_at) < 60_000) return;
+      if (keyOf(new Date(at)) === keyOf(old) && Math.abs(at - it.at) < 60_000) return;
       run(async () => {
-        await api(`/posts/${p.id}/reschedule`, { method: 'POST', body: { scheduled_at: at } });
+        if (it.kind === 'li') await li(`/posts/${it.id}/reschedule`, { method: 'POST', body: { whenAt: at } });
+        else await api(`/posts/${it.id}/reschedule`, { method: 'POST', body: { scheduled_at: at } });
         toast(`Moved to ${new Date(at).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })}${note}`);
         selected = keyOf(new Date(at));
-        views.posts();
+        await views.posts();
+        changed();
       })();
     });
   }
 
   async function renderList(g) {
-    const posts = await api('/posts');
+    const [igPosts, lin] = await Promise.all([
+      shows('instagram') ? api('/posts') : [],
+      shows('linkedin') ? li('/posts').then((r) => ({ list: r.filter((p) => p.status !== 'draft') }), (e) => ({ list: [], error: e.message })) : { list: [] },
+    ]);
     if (g !== D.gen()) return;
-    const pill = (p) => `<span class="cal-key st-${p.status}"><span class="cal-st">${ic(STATUS[p.status].icon)}</span>${STATUS[p.status].label}</span>`;
+    data = { posts: igPosts, instagram: [], linkedin: lin.list, liError: lin.error };
+    const upcoming = (it) => it.status === 'scheduled' || it.status === 'publishing';
+    const rows = [...igPosts.map(fromIg), ...lin.list.map(fromLi)]
+      .sort((a, b) => (upcoming(a) !== upcoming(b) ? (upcoming(a) ? -1 : 1) : upcoming(a) ? a.at - b.at : b.at - a.at));
+    const pill = (it) => `<span class="cal-key st-${it.status}"><span class="cal-st">${ic(STATUS[it.status].icon)}</span>${STATUS[it.status].label}</span>`;
     main.innerHTML = `
       <section class="card cal">
         ${header()}
-        ${posts.length ? `<div class="table-wrap"><table>
-          <tr><th>Media</th><th>Type</th><th>Caption</th><th>When</th><th>Status</th><th></th></tr>
-          ${posts.map((p) => `<tr>
-            <td><span class="ag-thumb">${p.media[0]?.kind === 'image' ? `<img src="${esc(p.media[0].url)}" alt="" loading="lazy">` : p.media[0] ? `<video src="${esc(p.media[0].url)}" muted preload="metadata"></video>` : ''}</span></td>
-            <td>${POST_TYPES[p.type]}${p.media.length > 1 ? ` · ${p.media.length}` : ''}</td>
-            <td class="clip">${esc(p.caption.slice(0, 140))}${p.caption.length > 140 ? '…' : ''}</td>
-            <td style="white-space:nowrap">${D.when(p.status === 'published' ? p.published_at : p.scheduled_at)}</td>
-            <td>${pill(p)}${p.error ? `<div class="small error">${esc(p.error)}</div>` : ''}</td>
-            <td><div class="row" style="flex-wrap:nowrap">${p.status === 'scheduled' || p.status === 'failed' ? `<button class="btn small" data-edit="${p.id}" type="button">${p.status === 'failed' ? 'Retry / edit' : 'Edit'}</button>` : ''}${p.status !== 'publishing' ? `<button class="btn small danger" data-del="${p.id}" type="button" aria-label="Delete">${ic('trash')}</button>` : ''}</div></td>
+        ${lin.error ? `<p class="small muted">LinkedIn posts could not be loaded: ${esc(lin.error)}</p>` : ''}
+        ${rows.length ? `<div class="table-wrap"><table>
+          <tr><th>Media</th>${multi ? '<th>Platform</th>' : ''}<th>Type</th><th>Caption</th><th>When</th><th>Status</th><th></th></tr>
+          ${rows.map((it) => `<tr>
+            <td><span class="ag-thumb">${it.thumb ? `<img src="${esc(it.thumb)}" alt="" loading="lazy">` : it.video ? `<video src="${esc(it.video)}" muted preload="metadata"></video>` : ic(it.platform === 'linkedin' ? 'linkedin' : 'image')}</span></td>
+            ${multi ? `<td><span class="cal-key">${pf(it)}${PLATFORMS[it.platform]}</span>${it.account ? `<div class="small muted">${esc(it.account)}</div>` : ''}</td>` : ''}
+            <td>${esc(typeLabel(it))}${it.platform === 'instagram' && it.post.media.length > 1 ? ` · ${it.post.media.length}` : ''}</td>
+            <td class="clip">${esc(String(it.caption || '').slice(0, 140))}${String(it.caption || '').length > 140 ? '…' : ''}</td>
+            <td style="white-space:nowrap">${D.when(it.at)}</td>
+            <td>${pill(it)}${it.error ? `<div class="small error">${esc(it.error)}</div>` : ''}</td>
+            <td><div class="cal-actions">${editBtn(it)}${it.status !== 'publishing' ? `<button class="btn small danger" data-del="${it.kind}:${it.id}" type="button" aria-label="Delete">${ic('trash')}</button>` : ''}</div></td>
           </tr>`).join('')}</table></div>` : '<div class="empty">Nothing scheduled yet.</div>'}
       </section>`;
-    data = { posts, instagram: [] };
     bindHeader();
     bindPostActions(main);
-    D.setRefresh(setInterval(() => D.visible() && $('#modal').hidden && run(views.posts)(), 30000));
+    D.setRefresh(setInterval(() => D.visible() && !modalOpen() && run(views.posts)(), 30000));
   }
 })();

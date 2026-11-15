@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/builder.css">
   <link rel="stylesheet" href="/pages.css">
+  <link rel="stylesheet" href="/calendar.css">
 </head>
 <body>
   <!-- shared gradients referenced by inline icons -->
@@ -36,8 +37,9 @@
 
   <div id="app" class="shell" hidden>
     <aside class="side">
-      <a class="brand" href="#overview"><span data-logo></span>DM Autopilot</a>
+      <a class="brand" href="#" id="brand"><span data-logo></span><span id="brand-name">DM Automation</span></a>
       <nav id="nav" aria-label="Main">
+        <a href="/" class="nav-home" title="All apps"><i data-ic="grid"></i><span>All apps</span></a>
         <a href="#overview" data-view="overview"><i data-ic="home"></i><span>Overview</span></a>
         <a href="#rules" data-view="rules" data-more><i data-ic="zap"></i><span>Automations</span></a>
         <a href="#flows" data-view="flows"><i data-ic="flow"></i><span>Flows</span></a>

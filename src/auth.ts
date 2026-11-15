@@ -90,9 +90,16 @@ export function login(req: Request, res: Response): void {
   res.json({ ok: true });
 }
 
-export function logout(req: Request, res: Response): void {
+/** Ends the dashboard session (also used by the LinkedIn section's "Sign out"). Appends, so other cookies set on the same response survive. */
+export function endSession(req: Request, res: Response): void {
   const nonce = sessionNonce(readCookie(req, cookieName()));
   if (nonce) db.prepare('DELETE FROM sessions WHERE nonce = ?').run(nonce);
-  res.setHeader('Set-Cookie', `${cookieName()}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${isHttps() ? '; Secure' : ''}`);
+  const clear = `${cookieName()}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${isHttps() ? '; Secure' : ''}`;
+  const prev = res.getHeader?.('Set-Cookie');
+  res.setHeader('Set-Cookie', prev == null ? clear : [...(Array.isArray(prev) ? prev : [String(prev)]), clear]);
+}
+
+export function logout(req: Request, res: Response): void {
+  endSession(req, res);
   res.json({ ok: true });
 }

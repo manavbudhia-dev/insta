@@ -1,0 +1,73 @@
+/* Content calendar: used by the Instagram Scheduler (Instagram only) and the home page (Instagram + LinkedIn).
+   Needs the colour tokens (--line, --muted, --accent-soft, ...) that style.css and home.css both define. */
+
+/* ---------- shared bits ---------- */
+.seg { display: inline-flex; padding: 3px; border-radius: 11px; background: #0d0f2b; border: 1px solid var(--line-2); gap: 2px; }
+.seg button { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; color: var(--muted); padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; white-space: nowrap; }
+.seg button:hover { color: var(--text); }
+.seg button.on { background: var(--accent-soft); color: #fff; box-shadow: inset 0 0 0 1px rgba(167, 139, 250, .4); }
+.seg svg { font-size: 15px; }
+.cal-st { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 5px; font-size: 11px; flex: none; }
+.cal-st svg { stroke-width: 2.4; }
+.st-scheduled { --st: #a78bfa; } .st-published { --st: var(--ok); } .st-failed { --st: var(--bad); }
+.st-draft { --st: #f59e0b; } .st-publishing, .st-pending { --st: var(--warn); } .st-instagram { --st: #9ea2cc; } .st-sent { --st: var(--ok); } .st-skipped { --st: var(--warn); }
+.cal-st { color: var(--st); background: color-mix(in srgb, var(--st) 18%, transparent); }
+.cal-key { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text); white-space: nowrap; }
+.ag-thumb { width: 44px; height: 44px; border-radius: 9px; overflow: hidden; display: grid; place-items: center; background: #0d0f2b; border: 1px solid var(--line); color: var(--faint); flex: none; font-size: 18px; }
+.ag-thumb img, .ag-thumb video { width: 100%; height: 100%; object-fit: cover; }
+
+/* ---------- calendar ---------- */
+.cal-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.cal-nav { display: flex; align-items: center; gap: 8px; margin-right: auto; }
+.cal-nav h2 { min-width: 190px; text-align: center; font-size: 20px; }
+.cal-nav .icon-btn { width: 36px; height: 36px; border-radius: 10px; }
+#cal-prev svg { transform: rotate(180deg); }
+.cal-sum { display: flex; gap: 14px; flex-wrap: wrap; order: 5; width: 100%; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--line); gap: 1px; }
+.cal-dow { background: #10122e; padding: 9px 10px; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.cal-day { background: #0f1130; min-height: 124px; padding: 6px 6px 8px; display: flex; flex-direction: column; gap: 4px; min-width: 0; cursor: pointer; transition: background .12s; position: relative; }
+.cal-day:hover { background: #14163a; }
+.cal-day.other { background: #0b0c26; }
+.cal-day.other .cal-dnum { color: var(--faint); }
+.cal-day.past:not(.today) .cal-items { opacity: .8; }
+.cal-day.sel { box-shadow: inset 0 0 0 2px rgba(167, 139, 250, .65); }
+.cal-day.drop { background: rgba(124, 92, 255, .2); box-shadow: inset 0 0 0 2px var(--accent-2); }
+.cal-dhead { display: flex; align-items: center; justify-content: space-between; }
+.cal-dnum { border: 0; background: none; color: #d9dbf5; font-size: 13px; font-weight: 600; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-variant-numeric: tabular-nums; }
+.cal-day.today .cal-dnum { background: var(--grad); color: #fff; }
+.cal-add { border: 0; width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: transparent; color: var(--muted); cursor: pointer; opacity: 0; transition: opacity .12s, background .12s; font-size: 15px; }
+.cal-day:hover .cal-add, .cal-add:focus-visible { opacity: 1; }
+.cal-add:hover { background: var(--accent-soft); color: #fff; }
+.cal-items { display: grid; gap: 4px; min-width: 0; }
+.cal-chip { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 7px; background: color-mix(in srgb, var(--st) 12%, #11132f); border: 1px solid color-mix(in srgb, var(--st) 30%, transparent); font-size: 12px; min-width: 0; cursor: pointer; }
+.cal-chip[draggable="true"] { cursor: grab; }
+.cal-chip.dragging { opacity: .45; }
+.cal-chip:hover { border-color: color-mix(in srgb, var(--st) 70%, transparent); }
+.cal-time { color: #e6e7fb; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cal-cap { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.cal-more { border: 0; background: none; color: var(--accent-2); font-size: 12px; text-align: left; padding: 2px 6px; cursor: pointer; }
+.cal-dots { display: none; gap: 3px; justify-content: center; }
+.cal-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--st); }
+.cal-tip { margin: 12px 0 0; }
+/* platform mark on calendar chips, keys and filter buttons */
+.cal-pf { width: 8px; height: 8px; border-radius: 50%; flex: none; display: inline-block; }
+.pf-instagram { background: linear-gradient(135deg, #feda75, #fa7e1e 35%, #d62976 62%, #4f5bd5); }
+.pf-linkedin { background: #3b8beb; box-shadow: 0 0 0 1px rgba(59, 139, 235, .35); }
+.seg .cal-pf { margin-right: 2px; }
+.ag-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.ag-row .grow { flex: 1; min-width: 0; }
+.ag-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ag-cap { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.cal-actions { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
+
+@media (max-width: 700px) {
+  .cal-nav { width: 100%; justify-content: space-between; margin-right: 0; }
+  .cal-nav h2 { min-width: 0; font-size: 17px; }
+  .cal-head .seg { order: 2; }
+  #cal-new { order: 3; margin-left: auto; }
+  .cal-dow { padding: 7px 0; text-align: center; font-size: 10.5px; letter-spacing: 0; }
+  .cal-day { min-height: 58px; padding: 4px 2px; align-items: center; }
+  .cal-dhead { justify-content: center; }
+  .cal-items, .cal-add { display: none; }
+  .cal-dots { display: flex; }
+}

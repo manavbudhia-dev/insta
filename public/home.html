@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#090a1f">
+  <title>Autopilot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/home.css">
+  <link rel="stylesheet" href="/calendar.css">
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <defs>
+      <linearGradient id="g-ig" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#feda75"/><stop offset=".35" stop-color="#fa7e1e"/><stop offset=".62" stop-color="#d62976"/><stop offset="1" stop-color="#4f5bd5"/></linearGradient>
+      <linearGradient id="g-bolt" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8b5cf6"/><stop offset="1" stop-color="#4f46e5"/></linearGradient>
+    </defs>
+  </svg>
+
+  <div id="login" class="login" hidden>
+    <form id="login-form" class="panel login-card">
+      <div class="brand"><span class="logo" data-logo></span>Autopilot</div>
+      <p class="muted">Sign in to your social media workspace.</p>
+      <label>Password
+        <input type="password" name="password" autocomplete="current-password" required autofocus>
+      </label>
+      <p class="error" id="login-error" hidden></p>
+      <button class="btn primary" type="submit">Sign in</button>
+    </form>
+  </div>
+
+  <div id="hub" class="hub" hidden>
+    <header class="top">
+      <div class="brand"><span class="logo" data-logo></span>Autopilot</div>
+      <button class="btn ghost" id="signout" type="button">Sign out</button>
+    </header>
+
+    <section class="hello">
+      <h1 id="hello">Welcome back</h1>
+      <p class="muted">Pick an app to work in. Everything below updates live from each one.</p>
+    </section>
+
+    <section class="apps" id="apps" aria-label="Apps"></section>
+
+    <section class="studio panel" id="studio" aria-labelledby="studio-title">
+      <div class="studio-head">
+        <div class="studio-title">
+          <span class="studio-ico" data-ic="spark"></span>
+          <div><h2 id="studio-title">AI content studio <span class="muted small">· LinkedIn</span></h2>
+            <p class="muted small">Writes and plans your posts, puts them on the calendar, and they publish on time by themselves.</p></div>
+        </div>
+        <div class="studio-tools" id="studio-tools"></div>
+      </div>
+      <div id="studio-body"><div class="skeleton"></div></div>
+    </section>
+
+    <section class="cal-home" id="cal-home" aria-labelledby="cal-home-title">
+      <div class="sec-head"><h2 id="cal-home-title">Content calendar</h2><span class="muted small">Instagram and LinkedIn posts together</span></div>
+      <div id="calendar"><div class="skeleton" style="height:420px"></div></div>
+    </section>
+
+    <section class="pair">
+      <div class="panel">
+        <div class="panel-head"><h2>Needs attention</h2></div>
+        <div id="attention" class="list"><div class="skeleton"></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Coming up</h2><span class="muted small">Next scheduled posts on all platforms</span></div>
+        <div id="upcoming" class="list"><div class="skeleton"></div></div>
+      </div>
+    </section>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="/home.js"></script>
+  <script src="/calendar.js"></script>
+</body>
+</html>
