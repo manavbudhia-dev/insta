@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Accounts · Autopilot for LinkedIn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0b1123;--card:#10182e;--line:#1c2542;--line2:#283254;--text:#eef0ff;--muted:#8f9bbd;--dim:#7b88c9;--v:#5f38fd;--vtext:#8f6bff;--green:#2fd6a4;--amber:#f5b94a;--red:#ff6b81;color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;min-height:100vh;color:var(--text);font:400 14px/1.45 Inter,"Segoe UI",system-ui,sans-serif;background:var(--bg)}
+svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+svg.fl{flex:none}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+button:disabled{cursor:default;opacity:.55}
+:focus-visible{outline:2px solid var(--vtext);outline-offset:2px}
+.row{display:flex;align-items:center}
+.av{border-radius:50%;overflow:hidden;flex:none;display:grid;place-items:center;color:#fff;font-weight:600;background:#c9ced8}
+h2,h3,p{margin:0}
+/* header + week strip + tabs come from /shell.css; these are the pieces that only exist on this page */
+.ph{justify-content:space-between;gap:16px;margin-top:24px;flex-wrap:wrap;align-items:flex-start}
+.ph h2{font-size:24.6px;font-weight:700;letter-spacing:-.005em;line-height:1.2}
+.ph p{margin-top:4px;color:#9ba7c9;font-size:14px}
+.btn{height:35px;border-radius:8px;padding:0 16px;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-size:12px;font-weight:600;border:1px solid var(--line2);background:rgba(11,17,35,.55);white-space:nowrap}
+.btn:hover:not(:disabled){border-color:#3b4780}
+.btn svg.i{width:16px;height:16px}
+.btn.p{border:0;background:linear-gradient(180deg,#6a43ff,#5a33f5);color:#fff;box-shadow:0 4px 14px rgba(95,56,253,.28)}
+.btn.p:hover:not(:disabled){background:linear-gradient(180deg,#7450ff,#6139fa)}
+.btn.big{height:45px;border-radius:10px;padding:0 20px;font-size:14px;gap:12px}
+.btn.big svg.i{width:19px;height:19px}
+.btn.d{border-color:rgba(255,107,129,.4);color:var(--red)}
+.ddw{position:relative}
+/* stat cards */
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin-top:16px}
+.stat{display:flex;align-items:center;gap:20px;padding:12px 20px;height:81px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(180deg,#111a31,#0f172c)}
+.tile{width:56px;height:56px;border-radius:12px;display:grid;place-items:center;flex:none}
+.tile svg.i{width:26px;height:26px;stroke-width:1.6}
+.t-li{background:#0d2e5d}
+.t-co{background:#202743;color:#8f9bd0}
+.t-tm{background:#1f1e4f;color:#8b6cff}
+.stat b{font-size:23px;font-weight:700;line-height:1;min-width:14px}
+.stat span{font-size:13px;line-height:1.35;color:var(--muted);margin-left:-2px}
+.stat span em{display:block;font-style:normal;color:#d8def5}
+/* section pills */
+.pills{display:flex;gap:12px;margin-top:16px;flex-wrap:wrap}
+.pt{height:29px;padding:0 24px;border-radius:999px;border:1px solid var(--line2);background:rgba(17,25,48,.7);font-size:12px;font-weight:500;color:#c6cdea}
+.pt:hover{border-color:#3b4780}
+.pt[aria-pressed=true]{background:var(--v);border-color:var(--v);color:#fff;font-weight:600;box-shadow:0 4px 14px rgba(95,56,253,.35)}
+/* layout */
+.cols{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(0,1fr);gap:16px;margin-top:12px;align-items:start}
+.stack{display:grid;gap:16px;align-content:start}
+.panel{border:1px solid var(--line);border-radius:14px;background:linear-gradient(180deg,#111a31,#0f172c);padding:16px 16px 16px}
+.pheader{display:flex;align-items:flex-start;gap:12px;padding:0 8px;margin-bottom:8px}
+.pheader>svg.i{width:22px;height:22px;color:#7c5cff;margin-top:2px;stroke-width:1.7}
+.pheader h3{font-size:14.5px;font-weight:700;line-height:1.3}
+.pheader p{margin-top:2px;font-size:12px;color:#9ba7c9}
+.pheader .grow{flex:1;min-width:0}
+/* account rows */
+.prow{display:grid;grid-template-columns:minmax(190px,1.15fr) minmax(210px,1fr) auto;align-items:center;gap:16px;padding:12px 16px;border:1px solid var(--line);border-radius:12px;background:var(--card2,#0d1427)}
+.prow+.prow{margin-top:12px}
+.who{display:flex;align-items:center;gap:16px;min-width:0}
+.who .av{width:53px;height:53px;font-size:18px}
+.who .sq{width:53px;height:53px;border-radius:50%;background:#1d204a;color:#8f9bd0;display:grid;place-items:center;flex:none}
+.who .sq svg.i{width:24px;height:24px}
+.nm{display:flex;align-items:center;gap:8px;font-size:13.4px;font-weight:600;min-width:0}
+.nm span.t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.who small{display:block;margin-top:3px;font-size:12px;color:#9ba7c9}
+.st{display:grid;gap:8px;justify-items:start}
+.chip{display:inline-flex;align-items:center;gap:8px;height:22px;padding:0 12px;border-radius:7px;font-size:12px;font-weight:500;background:rgba(47,214,164,.13);color:var(--green)}
+.chip::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
+.chip.warn{background:rgba(245,185,74,.14);color:var(--amber)}
+.chip.bad{background:rgba(255,107,129,.14);color:var(--red)}
+.note{display:flex;align-items:center;gap:8px;font-size:12px;color:#9ba7c9}
+.note svg.i{width:14px;height:14px}
+.acts{display:flex;align-items:center;gap:12px;justify-self:end}
+.ib{width:34px;height:34px;border-radius:8px;border:1px solid transparent;background:none;display:grid;place-items:center;color:#c6cdea}
+.ib:hover{background:#18213f;border-color:var(--line2)}
+.ib svg{width:20px;height:20px;fill:currentColor}
+/* empty states */
+.empty{display:flex;align-items:center;justify-content:center;gap:40px;padding:36px 20px;border:1px solid var(--line);border-radius:12px;background:#0d1427;min-height:157px;flex-wrap:wrap}
+.empty .big{width:68px;height:68px;border-radius:50%;background:#1d204a;color:#9aa6d6;display:grid;place-items:center;flex:none}
+.empty .big svg.i{width:30px;height:30px;stroke-width:1.5}
+.empty h4{margin:0;font-size:13.5px;font-weight:700}
+.empty p{margin-top:4px;max-width:430px;font-size:12px;color:#9ba7c9;line-height:1.5}
+.empty .bt{display:flex;gap:12px;margin-top:12px;flex-wrap:wrap}
+.empty .btn{height:37px;border-radius:8px;padding:0 20px}
+/* connection health */
+.health{display:flex;flex-direction:column}
+.hh{display:flex;align-items:flex-start;gap:12px;margin-bottom:16px}
+.hic{width:38px;height:38px;border-radius:50%;background:#12304f;color:#4aa8ff;display:grid;place-items:center;flex:none}
+.hic svg.i{width:20px;height:20px}
+.hh h3{font-size:14.5px;font-weight:700}
+.hh p{margin-top:2px;font-size:12px;color:#9ba7c9}
+.hh .grow{flex:1;min-width:0}
+.hh .btn{height:34px;border-radius:8px;padding:0 16px;font-size:12px;gap:8px}
+.hh .btn svg.i{width:15px;height:15px}
+@media (min-width:1100px){.hh p{white-space:nowrap}}
+.spin svg.i{animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin svg.i{animation:none}}
+.hbox{display:flex;align-items:center;gap:16px;padding:12px 16px;border-radius:10px;border:1px solid rgba(47,214,164,.28);background:linear-gradient(180deg,#0a2a2f,#0a272d)}
+.hbox .ci{width:37px;height:37px;border-radius:50%;display:grid;place-items:center;background:#14b985;color:#fff;flex:none}
+.hbox .ci svg.i{width:20px;height:20px;stroke-width:2.4}
+.hbox strong{display:block;font-size:12.5px;font-weight:700;color:var(--green)}
+.hbox small{display:block;margin-top:3px;font-size:12px;color:#aab5d6}
+.hbox.warn{border-color:rgba(245,185,74,.35);background:#2a2412}.hbox.warn .ci{background:#d99a2b}.hbox.warn strong{color:var(--amber)}
+.hbox.bad{border-color:rgba(255,107,129,.38);background:#2c1520}.hbox.bad .ci{background:#e0455b}.hbox.bad strong{color:var(--red)}
+.hbox.off{border-color:var(--line2);background:#111a31}.hbox.off .ci{background:#2a3358;color:#aeb8d9}.hbox.off strong{color:#d8def5}
+.hl{list-style:none;margin:12px 4px 16px;padding:0;display:grid;gap:12px}
+.hl li{display:flex;align-items:center;gap:12px;font-size:12px;line-height:1.3;color:#d2d8f2}
+.hl li .d{width:13px;height:13px;border-radius:50%;display:grid;place-items:center;background:#14b985;color:#06231d;flex:none}
+.hl li .d svg.i{width:9px;height:9px;stroke-width:3.4}
+.hl li.warn .d{background:#d99a2b;color:#2a1c00}.hl li.bad .d{background:#e0455b;color:#fff}.hl li.off .d{background:#2a3358;color:#aeb8d9}
+.hl li b{margin-left:auto;font-size:12px;font-weight:500;color:var(--green)}
+.hl li.warn b{color:var(--amber)}.hl li.bad b{color:var(--red)}.hl li.off b{color:var(--muted)}
+.help{margin-top:auto;display:flex;gap:16px;padding:16px 16px;border-radius:10px;border:1px solid var(--line);background:#0d1427}
+.help .bi{width:38px;height:38px;border-radius:50%;background:#2e2e68;color:#f1eeff;display:grid;place-items:center;flex:none}
+.help .bi svg.i{width:19px;height:19px}
+.help h4{margin:0;font-size:12.5px;font-weight:700}
+.help p{margin-top:4px;font-size:12px;color:#9ba7c9;line-height:1.5}
+.help a{display:inline-block;margin-top:8px;font-size:12px;font-weight:600;color:var(--vtext);text-decoration:none;background:none;border:0;padding:0}
+.help a:hover{text-decoration:underline}
+/* team */
+.team{margin-top:16px;padding:12px 0 0;overflow:hidden}
+.team .thead{display:flex;align-items:center;gap:16px;padding:0 20px 12px 24px;flex-wrap:wrap}
+.team .thead .pheader{margin:0;padding:0;flex:1;min-width:260px}
+.inv{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.fld{display:flex;align-items:center;gap:12px;height:37px;padding:0 12px;border:1px solid var(--line2);border-radius:8px;background:#0c1329;color:#8f9bbd}
+.fld:focus-within{border-color:#6b4ff0}
+.fld input,.fld select{background:none;border:0;outline:0;color:var(--text);font-size:12px;height:100%;min-width:0}
+.fld input{width:100%}
+.fld.em{width:313px}
+.fld input::placeholder{color:#7783ab}
+.fld.sel{width:147px;position:relative}
+.fld.sel select{appearance:none;-webkit-appearance:none;width:100%;padding-right:24px;cursor:pointer}
+.fld.sel select option{background:#10182e}
+.fld.sel svg.i{position:absolute;right:11px;width:15px;height:15px;pointer-events:none}
+.fld svg.i{width:18px;height:18px}
+.inv .btn{height:37px;border-radius:8px;padding:0 0;width:147px;font-size:12px}
+.tbl{width:100%}
+.tr{display:grid;grid-template-columns:minmax(210px,2.35fr) minmax(190px,2fr) minmax(90px,1.1fr) minmax(110px,1.3fr) minmax(110px,1.4fr) 70px;align-items:center;gap:8px;padding:0 24px}
+.tr.h{height:33px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:#0d1427;font-size:12px;color:var(--muted)}
+.tr.b{height:54px;font-size:12px;color:#d8def5}
+.tr.b+.tr.b{border-top:1px solid var(--line)}
+.tr .r{text-align:right;justify-self:end}
+.tr .who .av{width:38px;height:38px;font-size:14px}
+.tr .who{gap:12px}
+.tr .nm{font-size:12.5px}
+.tr .who small{margin-top:1px;font-size:12px}
+.you{height:19px;padding:0 8px;border-radius:7px;background:#4a2fc8;color:#fff;font-size:12px;font-weight:600;display:inline-flex;align-items:center}
+.tr .cut{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tr .chip{height:24px;padding:0 12px;font-size:12px}
+/* menus + dialogs + toast */
+.menu{position:fixed;z-index:30;min-width:210px;padding:8px;border:1px solid var(--line2);border-radius:11px;background:#131b36;box-shadow:0 16px 40px rgba(0,0,0,.45)}
+.menu button{width:100%;display:flex;align-items:center;gap:12px;padding:8px 12px;border:0;border-radius:8px;background:none;text-align:left;font-size:13.5px;font-weight:500}
+.menu button:hover:not(:disabled){background:#1b2548}
+.menu button small{display:block;color:var(--muted);font-size:12px;font-weight:400}
+.menu button svg.i{width:18px;height:18px;color:#aeb8d9}
+.menu button.dn{color:var(--red)}.menu button.dn svg.i{color:var(--red)}
+dialog{width:min(480px,calc(100vw - 28px));max-height:calc(100vh - 40px);padding:0;border:1px solid var(--line2);border-radius:16px;background:#0f172c;color:var(--text);box-shadow:0 30px 80px rgba(0,0,0,.6)}
+dialog::backdrop{background:rgba(5,8,22,.72)}
+.dh{display:flex;align-items:flex-start;gap:12px;padding:20px 24px 0}
+.dh h3{font-size:17px;font-weight:700}
+.dh p{margin-top:3px;font-size:13px;color:var(--muted)}
+.dh .ib{margin-left:auto;margin-top:-4px}
+.dh .ib svg{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.db{padding:16px 24px 4px;font-size:13.5px;color:#d2d8f2}
+.db ul{margin:0;padding-left:20px;display:grid;gap:8px;line-height:1.5}
+.db code{font:12.5px ui-monospace,Menlo,Consolas,monospace;background:#18213f;padding:1px 8px;border-radius:5px}
+.kv{display:grid;grid-template-columns:130px 1fr;gap:12px 12px;padding:8px 0}
+.kv dt{color:var(--muted)}.kv dd{margin:0;word-break:break-word}
+.lbl{display:block;margin:12px 0 8px;font-size:13px;font-weight:600;color:#d2d8f2}
+.fld.w{width:100%}.fld.w input{width:100%}
+.fld.w.sel{width:100%}
+.df{display:flex;justify-content:flex-end;gap:12px;padding:16px 24px 20px;flex-wrap:wrap}
+.pw{display:flex;gap:8px}.pw .fld{flex:1}.pw input{font-family:ui-monospace,Menlo,Consolas,monospace}
+.hint{margin:12px 0 0;font-size:12.5px;color:var(--muted)}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);background:#1a2150;border:1px solid #4d56a8;padding:12px 20px;border-radius:11px;opacity:0;pointer-events:none;transition:.2s;z-index:50;font-weight:500;font-size:13.5px}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.sk{color:transparent!important;background:linear-gradient(90deg,#141d38,#1a2447,#141d38);background-size:200% 100%;border-radius:6px;animation:sh 1.3s linear infinite}
+@keyframes sh{to{background-position:-200% 0}}
+@media (max-width:1060px){.cols{grid-template-columns:1fr}.stats{grid-template-columns:1fr}.health{order:2}}
+@media (max-width:760px){.prow{grid-template-columns:1fr;gap:12px}.acts{justify-self:start}.empty{gap:20px}.tbl{overflow-x:auto}.tr{min-width:760px}.fld input{width:100%}.inv{width:100%}.inv .fld:first-child{flex:1 1 100%}.btn.big{height:42px}}
+.coll .pheader{cursor:pointer}.coll .tg{margin-left:auto;flex:none;width:44px;height:44px;border-radius:10px;border:1px solid var(--line2);background:none;color:var(--vtext);display:grid;place-items:center}
+.coll .tg svg.i{width:18px;height:18px;transition:transform .2s}.coll[data-c="0"] .tg svg.i{transform:rotate(180deg)}
+.coll[data-c="1"] .cbody{display:none}.coll[data-c="1"] .pheader{margin-bottom:0}
+@media (prefers-reduced-motion:reduce){.coll .tg svg.i{transition:none}}
+</style>
+<link rel="stylesheet" href="/linkedin/shell.css">
+</head>
+<body class="noweek">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+<symbol id="spark" viewBox="0 0 24 24"><path d="M10 3l1.800 5.200L17 10l-5.200 1.800L10 17l-1.800-5.200L3 10l5.200-1.800zM18 14l.9 2.600 2.600.9-2.600.9L18 21l-.9-2.600-2.600-.9 2.600-.9z"/></symbol>
+<symbol id="send" viewBox="0 0 24 24"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></symbol>
+<symbol id="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+<symbol id="right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+<symbol id="cal" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+<symbol id="pen" viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M14 7.5l3 3M12 20h8"/></symbol>
+<symbol id="bars" viewBox="0 0 24 24"><path d="M5 20V10M10 20V4M15 20V9M20 20V13M3 20h18"/></symbol>
+<symbol id="users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.6"/><path d="M2.5 20c.5-3.7 3-5.5 6.5-5.5s6 1.8 6.5 5.5"/><path d="M16 4.6a3.6 3.6 0 0 1 0 6.8M18 14.8c2 .6 3.2 2.3 3.5 5.2"/></symbol>
+<symbol id="gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+<symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="building" viewBox="0 0 24 24"><path d="M6 21V4.500A1.500 1.500 0 0 1 7.500 3h7A1.500 1.500 0 0 1 16 4.500V21M16 9.500h1.500A1.500 1.500 0 0 1 19 11v10M4 21h16M9.500 7h1M12.500 7h1M9.500 10.500h1M12.500 10.500h1M9.500 14h1M12.500 14h1M10.500 21v-3.500h2V21"/></symbol>
+<symbol id="inl" viewBox="0 0 24 24"><path d="M5 10v9M5 6.200h.01M10 19v-9M10 13.500a3.500 3.500 0 0 1 7 0V19"/></symbol>
+<symbol id="book" viewBox="0 0 24 24"><path d="M2.5 5.5C5 4 8.5 4 12 6.5c3.5-2.5 7-2.5 9.5-1v13c-2.5-1.5-6-1.5-9.5 1-3.5-2.5-7-2.5-9.5-1zM12 6.5v13"/></symbol>
+<symbol id="pulse" viewBox="0 0 24 24"><path d="M3 12h4l2.5-6 4 12 2.5-6H21"/></symbol>
+<symbol id="refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.5-3.5M4 4v4h4M4 13a8 8 0 0 0 14.5 3.5M20 20v-4h-4"/></symbol>
+<symbol id="mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.5 7 8.5 6 8.5-6"/></symbol>
+<symbol id="info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M12 11v5.500M12 7.800h.01"/></symbol>
+<symbol id="bulb" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2.500a6.500 6.500 0 0 0-3.800 11.800c.5.400.8.900.8 1.500v.7h6v-.7c0-.6.300-1.100.8-1.500A6.500 6.500 0 0 0 12 2.500zM9.500 18.500h5v1a1.500 1.500 0 0 1-1.500 1.500h-2a1.500 1.500 0 0 1-1.500-1.500z" stroke="none"/></symbol>
+<symbol id="check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.500L19 7.500"/></symbol>
+<symbol id="x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+<symbol id="alert" viewBox="0 0 24 24"><path d="M12 7v6M12 17h.01"/></symbol>
+<symbol id="trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></symbol>
+<symbol id="copy" viewBox="0 0 24 24"><rect x="8.500" y="8.500" width="12" height="12" rx="2.500"/><path d="M15.500 8.500V6A2.500 2.500 0 0 0 13 3.500H6A2.500 2.500 0 0 0 3.500 6v7A2.500 2.500 0 0 0 6 15.500h2.500"/></symbol>
+<symbol id="link" viewBox="0 0 24 24"><path d="M10 14a4.500 4.500 0 0 0 6.400 0l3-3a4.500 4.500 0 0 0-6.400-6.400l-1.500 1.500"/><path d="M14 10a4.500 4.500 0 0 0-6.400 0l-3 3a4.500 4.500 0 0 0 6.400 6.400l1.500-1.500"/></symbol>
+<symbol id="arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+<symbol id="li" viewBox="0 0 24 24"><rect width="24" height="24" rx="4.500" fill="#0a66c2"/><path fill="#fff" d="M6.100 9.600h2.700V18H6.100zM7.450 5.700a1.560 1.560 0 1 1 0 3.120 1.560 1.560 0 0 1 0-3.120zM10.500 9.600h2.600v1.150h.04c.36-.7 1.250-1.400 2.570-1.400 2.750 0 3.250 1.800 3.250 4.150V18h-2.700v-3.900c0-.93-.02-2.130-1.300-2.130-1.300 0-1.500 1-1.500 2.060V18h-2.700z"/></symbol>
+<symbol id="inm" viewBox="0 0 24 24"><path fill="currentColor" d="M3.500 9.600h3.200V20H3.500zM5.100 4.200a1.900 1.900 0 1 1 0 3.800 1.900 1.900 0 0 1 0-3.800zM9.200 9.600h3.100v1.400h.05c.43-.82 1.500-1.700 3.100-1.700 3.300 0 3.900 2.200 3.900 5V20h-3.200v-5.200c0-1.200 0-2.800-1.700-2.800s-2 1.300-2 2.700V20H9.200z"/></symbol>
+<symbol id="face" viewBox="0 0 64 64"><rect width="64" height="64" fill="#cfd4de"/><path d="M6 64c2-14 12-18 26-18s24 4 26 18z" fill="#1d2433"/><path d="M26 44h12v8c-2 3-10 3-12 0z" fill="#b9805a"/><ellipse cx="32" cy="28" rx="11" ry="14" fill="#c8895f"/><path d="M20 26c0-10 7-14 13-14s12 4 12 12c-2-5-6-7-11-7s-10 2-14 9z" fill="#1d1a1a"/></symbol>
+</defs>
+</svg>
+
+<div class="wrap">
+  <header class="row">
+    <div class="row brand">
+      <div class="logo"><svg class="i"><use href="#send"/></svg></div>
+      <div><h1>Autopilot for LinkedIn</h1><p>Manage publishing identities and team access</p></div>
+    </div>
+    <div class="row right">
+      <div class="row user"><svg class="av" viewBox="0 0 64 64"><use href="#face"/></svg><span id="me">Loading…</span><svg class="i"><use href="#chev"/></svg></div>
+      <button class="signout" id="out">Sign out</button>
+    </div>
+  </header>
+
+  <section class="row week" hidden aria-label="Week">
+    <div class="days" id="days"></div>
+    <div class="row nav">
+      <button id="pw" aria-label="Previous week"><svg class="i"><use href="#left"/></svg></button>
+      <button class="mid" id="wkb"><svg class="i"><use href="#cal"/></svg><span id="wk">This week</span></button>
+      <button id="nw" aria-label="Next week"><svg class="i"><use href="#right"/></svg></button>
+    </div>
+  </section>
+
+  <nav class="row tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="false" data-go="/linkedin/"><svg class="i"><use href="#pen"/></svg>Schedule</button>
+    <button class="tab" role="tab" aria-selected="false" data-go="/linkedin/queue.html"><svg class="i"><use href="#cal"/></svg>Queue</button>
+    <button class="tab" role="tab" aria-selected="false" data-go="/linkedin/analytics.html"><svg class="i"><use href="#bars"/></svg>Analytics</button>
+    <button class="tab" role="tab" aria-selected="true"><svg class="i"><use href="#users"/></svg>Accounts</button>
+    <button class="tab" role="tab" aria-selected="false" data-go="/linkedin/auto.html"><svg class="i"><use href="#spark"/></svg>Auto content</button>
+    <button class="tab" role="tab" aria-selected="false" data-go="/linkedin/settings.html"><svg class="i"><use href="#gear"/></svg>Settings</button>
+    <a class="plat" href="/#overview" title="Instagram DM automation"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></svg>Instagram</a>
+  </nav>
+
+  <main>
+    <section class="row ph">
+      <div><h2>Accounts &amp; access</h2><p>Manage your LinkedIn profiles, company pages and team members.</p></div>
+      <div class="ddw"><button class="btn p big" id="conn" aria-haspopup="menu"><svg class="i"><use href="#plus"/></svg>Connect account<svg class="i" style="width:16px;height:16px"><use href="#chev"/></svg></button></div>
+    </section>
+
+    <section class="stats" id="stats" aria-label="Summary"></section>
+
+    <div class="pills" role="group" aria-label="Jump to section">
+      <button class="pt" data-s="sp" aria-pressed="true" id="pt0">Profiles (0)</button>
+      <button class="pt" data-s="sc" aria-pressed="false" id="pt1">Company pages (0)</button>
+      <button class="pt" data-s="st" aria-pressed="false" id="pt2">Team (0)</button>
+    </div>
+
+    <div class="cols">
+      <div class="stack">
+        <section class="panel" id="sp">
+          <div class="pheader"><svg class="i"><use href="#inl"/></svg><div class="grow"><h3>LinkedIn profiles</h3><p>Connect and manage your personal LinkedIn profiles for publishing.</p></div></div>
+          <div id="profiles"><div class="skl-row"><span class="skl" style="height:56px"></span></div></div>
+        </section>
+        <section class="panel coll" id="sc" data-c="1">
+          <div class="pheader"><svg class="i"><use href="#users"/></svg><div class="grow"><h3>Company pages</h3><p>Needs approved LinkedIn API access. Skip this if you only post from a personal profile.</p></div><button class="tg" id="sctg" aria-expanded="false" aria-controls="pages" aria-label="Show company pages"><svg class="i"><use href="#chev"/></svg></button></div>
+          <div id="pages" class="cbody"></div>
+        </section>
+      </div>
+
+      <aside class="panel health" aria-labelledby="hth">
+        <div class="hh">
+          <div class="hic"><svg class="i"><use href="#pulse"/></svg></div>
+          <div class="grow"><h3 id="hth">Connection health</h3><p>Status of your connected accounts and API access.</p></div>
+          <button class="btn" id="rfs"><svg class="i"><use href="#refresh"/></svg>Refresh status</button>
+        </div>
+        <div id="hbox"></div>
+        <ul class="hl" id="hl"><li><span class="skl" style="height:16px;width:100%"></span></li></ul>
+        <div class="help">
+          <div class="bi"><svg class="i"><use href="#bulb"/></svg></div>
+          <div><h4>Need help connecting?</h4><p>Make sure you are logged in with a LinkedIn account that has admin access to the page. Company page analytics require additional LinkedIn API permissions.</p><a href="#" id="guide">View setup guide <svg class="i" style="width:13px;height:13px;vertical-align:-2px"><use href="#arrow"/></svg></a></div>
+        </div>
+      </aside>
+    </div>
+
+    <section class="panel team" id="st">
+      <div class="thead">
+        <div class="pheader"><svg class="i"><use href="#users"/></svg><div class="grow"><h3>Team members</h3><p>Invite your team members to manage content, view analytics and collaborate.</p></div></div>
+        <div class="inv" id="inv">
+          <label class="fld em"><svg class="i"><use href="#mail"/></svg><input type="email" id="ie" placeholder="Enter team member email" autocomplete="off" aria-label="Team member email"></label>
+          <label class="fld sel"><select id="ir" aria-label="Role"><option value="editor">Editor</option><option value="admin">Admin</option></select><svg class="i"><use href="#chev"/></svg></label>
+          <button class="btn" id="isend">Send invite</button>
+        </div>
+      </div>
+      <div class="tbl" id="tbl" role="table" aria-label="Team members"><div class="skl-row"><span class="skl" style="height:40px"></span><span class="skl" style="height:40px"></span></div></div>
+    </section>
+  </main>
+  <div class="toast" id="toast" role="status"></div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id),P=n=>String(n).padStart(2,"0"),DN=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],DAY=864e5;
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const iso=d=>d.getFullYear()+"-"+P(d.getMonth()+1)+"-"+P(d.getDate());
+const add=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x};
+const mon=d=>{const x=new Date(d);x.setHours(0,0,0,0);return add(x,-((x.getDay()+6)%7))};
+const today=new Date(),thisMon=mon(today),md={month:"short",day:"numeric"};
+const fdate=t=>t?new Date(t).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";
+const ic=(n,c="")=>`<svg class="i ${c}"><use href="#${n}"/></svg>`;
+let me=null,accounts=[],users=[],status=null,posts=[],wk=thisMon,sel=iso(add(thisMon,4)),checked=new Date(),tt;
+const isAdmin=()=>me&&me.role==="admin";
+function toast(m){const t=$("toast");t.textContent=m;t.classList.add("on");clearTimeout(tt);tt=setTimeout(()=>t.classList.remove("on"),3400)}
+async function api(p,o={}){const r=await fetch(p,{method:o.method||"GET",headers:{"Content-Type":"application/json"},body:o.body?JSON.stringify(o.body):undefined});
+ const j=await r.json().catch(()=>({}));if(!r.ok){if(r.status===401)location.href="/linkedin/classic.html";throw new Error(j.error||"Something went wrong")}return j}
+function avatar(name,size){
+ const parts=String(name||"?").trim().split(/\s+/),ini=((parts[0]||"?")[0]+(parts.length>1?parts[parts.length-1][0]:"")).toUpperCase();
+ let h=0;for(const c of String(name))h=(h*31+c.charCodeAt(0))%360;
+ return `<span class="av" style="width:${size}px;height:${size}px;background:linear-gradient(145deg,hsl(${h} 55% 52%),hsl(${(h+40)%360} 55% 36%))" aria-hidden="true">${esc(ini)}</span>`}
+const face=size=>`<svg class="av" viewBox="0 0 64 64" style="width:${size}px;height:${size}px" aria-hidden="true"><use href="#face"/></svg>`;
+
+/* ---- week strip ---- */
+const pkey=p=>p.status==="published"?(p.published_at||p.when_at):p.when_at;
+function renderWeek(){
+ const real=posts.filter(p=>p.status!=="draft");
+ $("days").innerHTML=[0,1,2,3,4,5,6].map(i=>{const d=add(wk,i),k=iso(d),n=real.filter(p=>iso(new Date(pkey(p)))===k).length;
+  return `<button class="day${n?" has":""}" data-d="${k}" aria-pressed="${k===sel}"><span class="dn">${DN[d.getDay()]}</span><span class="num">${d.toLocaleDateString("en-US",md)}</span><span class="ct">${n} ${n==1?"post":"posts"}</span></button>`}).join("");
+ const df=Math.round((wk-thisMon)/6048e5);
+ $("wk").textContent=df==0?"This week":df==1?"Next week":df==-1?"Last week":wk.toLocaleDateString("en-US",md)+" – "+add(wk,6).toLocaleDateString("en-US",md)}
+$("days").onclick=e=>{const b=e.target.closest(".day");if(b)location.href="/linkedin/?date="+b.dataset.d};
+$("pw").onclick=()=>{wk=add(wk,-7);renderWeek()};$("nw").onclick=()=>{wk=add(wk,7);renderWeek()};$("wkb").onclick=()=>{wk=thisMon;renderWeek()};
+
+/* ---- derived data ---- */
+const profiles=()=>accounts.filter(a=>a.kind==="member");
+const pages=()=>accounts.filter(a=>a.kind==="organization");
+const daysLeft=a=>a.expires_at?Math.ceil((a.expires_at-Date.now())/DAY):null;
+function stateOf(a){ // ok | warn | bad
+ if(a.expired)return"bad";
+ const src=a.token_from?accounts.find(x=>x.id===a.token_from):a,d=src&&src.expires_at?Math.ceil((src.expires_at-Date.now())/DAY):null;
+ return d!==null&&d<=7?"warn":"ok"}
+const chipFor=a=>{const s=stateOf(a);return`<span class="chip ${s==="ok"?"":s}">${s==="bad"?"Expired":s==="warn"?"Expires soon":"Connected"}</span>`};
+function expiryNote(a){
+ const src=a.token_from?accounts.find(x=>x.id===a.token_from):a;
+ if(!src||!src.expires_at)return"Authorization active";
+ const d=daysLeft(src);
+ if(src.expires_at<=Date.now())return"Authorization expired on "+fdate(src.expires_at);
+ return"Authorization expires in "+d+(d===1?" day":" days")}
+
+/* ---- render ---- */
+function renderStats(){
+ const p=profiles().length,c=pages().length,t=users.length;
+ $("stats").innerHTML=`
+ <div class="stat"><div class="tile t-li"><svg class="fl" width="30" height="30" viewBox="0 0 24 24"><use href="#li"/></svg></div><b>${p}</b><span><em>LinkedIn ${p===1?"profile":"profiles"}</em>connected</span></div>
+ <div class="stat"><div class="tile t-co">${ic("building")}</div><b>${c}</b><span><em>Company ${c===1?"page":"pages"}</em>connected</span></div>
+ <div class="stat"><div class="tile t-tm">${ic("users")}</div><b>${t}</b><span><em>Team ${t===1?"member":"members"}</em>in your workspace</span></div>`;
+ $("pt0").textContent=`Profiles (${p})`;$("pt1").textContent=`Company pages (${c})`;$("pt2").textContent=`Team (${t})`}
+
+function renderProfiles(){
+ const list=profiles();
+ $("profiles").innerHTML=list.length?list.map(a=>`
+ <div class="prow" data-id="${a.id}">
+  <div class="who">${avatar(a.name,53)}<div style="min-width:0"><div class="nm"><span class="t">${esc(a.name)}</span><svg class="fl" width="18" height="18" viewBox="0 0 24 24" aria-label="LinkedIn"><use href="#li"/></svg></div><small>Personal profile</small></div></div>
+  <div class="st">${chipFor(a)}<div class="note">${ic("info")}${esc(expiryNote(a))}</div></div>
+  <div class="acts"><button class="btn" data-a="manage">Manage access</button><button class="ib" data-a="more" aria-label="More actions for ${esc(a.name)}" aria-haspopup="menu"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button></div>
+ </div>`).join(""):
+ `<div class="empty"><div class="big">${ic("inl")}</div><div><h4>No LinkedIn profile connected</h4><p>Connect your profile to start scheduling and publishing posts from this workspace.</p><div class="bt"><button class="btn" id="cp">Connect profile</button></div></div></div>`;
+ const cp=$("cp");if(cp)cp.onclick=()=>location.href="/linkedin/auth/linkedin"}
+
+function renderPages(){
+ const list=pages();
+ $("pages").innerHTML=list.length?list.map(a=>{const src=accounts.find(x=>x.id===a.token_from);return`
+ <div class="prow" data-id="${a.id}">
+  <div class="who"><span class="sq">${ic("building")}</span><div style="min-width:0"><div class="nm"><span class="t">${esc(a.name)}</span></div><small>Company page</small></div></div>
+  <div class="st">${chipFor(a)}<div class="note">${ic("info")}${src?"Publishes with "+esc(src.name)+"’s connection":"Connection missing"}</div></div>
+  <div class="acts"><button class="btn" data-a="manage">Manage access</button><button class="ib" data-a="more" aria-label="More actions for ${esc(a.name)}" aria-haspopup="menu"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button></div>
+ </div>`}).join(""):
+ `<div class="empty"><div class="big">${ic("building")}</div><div><h4>No company pages connected</h4><p>Company page access requires LinkedIn API permission and an admin role on the page.</p><div class="bt"><button class="btn" id="lr">${ic("book")}Learn about requirements</button><button class="btn" id="cc">Connect company page</button></div></div></div>`;
+ const lr=$("lr"),cc=$("cc");if(lr)lr.onclick=requirements;if(cc)cc.onclick=companyDialog}
+
+function healthItems(){
+ const pr=profiles(),worst=a=>a.some(x=>stateOf(x)==="bad")?"bad":a.some(x=>stateOf(x)==="warn")?"warn":"ok";
+ const usable=pr.filter(a=>!a.expired);
+ const api_=status&&status.linkedinReady===false?["bad","Not set up"]:status&&status.version&&status.version.level==="old"?["bad","Update needed"]:status&&status.version&&status.version.level==="soon"?["warn","Update soon"]:["ok","Healthy"];
+ const prof=!pr.length?["off","Not connected"]:{ok:["ok","Active"],warn:["warn","Expiring soon"],bad:["bad","Expired"]}[worst(pr)];
+ const pub=usable.length?["ok","Active"]:pr.length?["bad","Reconnect needed"]:["off","Unavailable"];
+ return[["LinkedIn API connection",...api_],["Profile access",...prof],["Publishing permissions",...pub],["Analytics access (profile)",...pub]]}
+function renderHealth(){
+ const it=healthItems(),all=it.map(x=>x[1]),lvl=all.includes("bad")?"bad":all.includes("warn")?"warn":!profiles().length?"off":"ok";
+ const T={ok:"All connected accounts are healthy",warn:"Some connections need attention soon",bad:"Action needed to keep posting",off:"Connect a profile to start publishing"}[lvl];
+ const when=checked.toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"});
+ $("hbox").innerHTML=`<div class="hbox ${lvl==="ok"?"":lvl}"><div class="ci">${ic(lvl==="ok"?"check":lvl==="off"?"info":"alert")}</div><div><strong>${T}</strong><small>Last checked: ${esc(when)}</small></div></div>`;
+ $("hl").innerHTML=it.map(([l,s,t])=>`<li class="${s==="ok"?"":s}"><span class="d">${ic(s==="ok"?"check":s==="bad"?"x":s==="warn"?"alert":"x")}</span>${esc(l)}<b>${esc(t)}</b></li>`).join("")}
+
+function renderTeam(){
+ const admin=isAdmin();
+ $("inv").style.display=admin?"":"none";
+ $("tbl").innerHTML=`<div class="tr h" role="row"><span>Name</span><span>Email</span><span>Role</span><span>Status</span><span>Added on</span><span class="r">Actions</span></div>`+
+ users.map(u=>{const self=me&&u.id===me.id;return`
+ <div class="tr b" role="row" data-id="${u.id}">
+  <div class="who">${self?face(38):avatar(u.name,38)}<div style="min-width:0"><div class="nm"><span class="t">${esc(u.name)}</span>${self?'<span class="you">You</span>':""}</div><small>${u.role==="admin"?"Admin":"Editor"}</small></div></div>
+  <span class="cut">${esc(u.email)}</span><span>${u.role==="admin"?"Admin":"Editor"}</span><span><span class="chip">Active</span></span><span>${fdate(u.created_at)}</span>
+  <span class="r"><button class="ib" data-a="member" aria-label="More actions for ${esc(u.name)}" aria-haspopup="menu"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button></span>
+ </div>`}).join("")}
+let scTouched=false;
+const setColl=(open)=>{const c=$("sc");c.dataset.c=open?"0":"1";const b=$("sctg");b.setAttribute("aria-expanded",open);b.setAttribute("aria-label",(open?"Hide":"Show")+" company pages")};
+const renderAll=()=>{renderWeek();renderStats();renderProfiles();renderPages();renderHealth();renderTeam();if(!scTouched)setColl(pages().length>0)};
+
+/* ---- menus ---- */
+let menuEl=null;
+function closeMenu(){if(menuEl){menuEl.remove();menuEl=null}}
+function openMenu(btn,items,align="left"){
+ closeMenu();const m=document.createElement("div");m.className="menu";m.setAttribute("role","menu");
+ m.innerHTML=items.map((x,i)=>`<button role="menuitem" data-i="${i}" class="${x.danger?"dn":""}"${x.off?" disabled":""}>${ic(x.icon)}<span>${esc(x.label)}${x.sub?`<small>${esc(x.sub)}</small>`:""}</span></button>`).join("");
+ document.body.appendChild(m);const r=btn.getBoundingClientRect(),w=m.offsetWidth;
+ m.style.top=Math.min(r.bottom+6,innerHeight-m.offsetHeight-8)+"px";
+ m.style.left=Math.max(8,Math.min(align==="right"?r.right-w:r.left,innerWidth-w-8))+"px";
+ m.onclick=e=>{const b=e.target.closest("button");if(!b||b.disabled)return;const x=items[b.dataset.i];closeMenu();x.fn()};
+ menuEl=m;const f=m.querySelector("button:not(:disabled)");if(f)f.focus()}
+document.addEventListener("click",e=>{if(menuEl&&!menuEl.contains(e.target)&&!e.target.closest("[aria-haspopup]"))closeMenu()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeMenu()});
+addEventListener("resize",closeMenu);addEventListener("scroll",closeMenu,{passive:true});
+
+/* ---- dialogs ---- */
+function dialog(html){
+ const d=document.createElement("dialog");d.innerHTML=html;document.body.appendChild(d);
+ d.addEventListener("close",()=>d.remove());d.addEventListener("click",e=>{if(e.target===d)d.close()});
+ d.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>d.close());d.showModal();return d}
+const dhead=(t,s)=>`<div class="dh"><div><h3>${esc(t)}</h3>${s?`<p>${esc(s)}</p>`:""}</div><button class="ib" data-close aria-label="Close"><svg viewBox="0 0 24 24"><use href="#x"/></svg></button></div>`;
+function requirements(){
+ const d=dialog(`${dhead("Company page requirements","Pages need extra approval from LinkedIn.")}
+ <div class="db"><ul>
+  <li>Your LinkedIn app needs the <strong>Community Management API</strong>. LinkedIn reviews and approves it.</li>
+  <li>Once approved, add <code>w_organization_social</code> and <code>r_organization_social</code> to the scopes in <strong>Settings → LinkedIn app</strong>, then reconnect your profile.</li>
+  <li>The LinkedIn profile you connect must be an <strong>admin of the page</strong>. The page publishes with that profile’s connection.</li>
+  <li>You need the page’s numeric organization ID.</li>
+ </ul></div>
+ <div class="df"><button class="btn" data-close>Close</button>${isAdmin()?'<button class="btn p" id="go">Connect company page</button>':""}</div>`);
+ const g=d.querySelector("#go");if(g)g.onclick=()=>{d.close();companyDialog()}}
+function companyDialog(){
+ if(!isAdmin()){toast("Only admins can connect company pages.");return}
+ const mem=profiles().filter(a=>!a.expired);
+ if(!mem.length){toast("Connect a LinkedIn profile that admins the page first.");return}
+ const d=dialog(`${dhead("Connect company page","The page publishes with a connected profile that is its admin.")}
+ <div class="db">
+  <label class="lbl" for="cn" style="margin-top:0">Page name <span style="color:var(--muted);font-weight:400">(optional)</span></label><div class="fld w"><input id="cn" maxlength="80" placeholder="Acme Inc."></div>
+  <label class="lbl" for="ci">Organization ID</label><div class="fld w"><input id="ci" inputmode="numeric" placeholder="Numbers only, e.g. 12345678"></div>
+  <label class="lbl" for="ct">Publish with</label><div class="fld w sel"><select id="ct">${mem.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join("")}</select>${ic("chev")}</div>
+  <p class="hint">Needs the Community Management API. <a href="#" id="rq" style="color:var(--vtext);font-weight:600;text-decoration:none">Learn about requirements</a></p>
+ </div>
+ <div class="df"><button class="btn" data-close>Cancel</button><button class="btn p" id="save">Connect page</button></div>`);
+ d.querySelector("#rq").onclick=e=>{e.preventDefault();d.close();requirements()};
+ d.querySelector("#save").onclick=async e=>{const b=e.currentTarget;b.disabled=true;
+  try{await api("/linkedin/api/accounts/org",{method:"POST",body:{name:d.querySelector("#cn").value.trim(),orgId:d.querySelector("#ci").value.trim(),tokenFrom:+d.querySelector("#ct").value}});
+   d.close();await reload();toast("Company page connected")}catch(x){toast(x.message);b.disabled=false}}}
+function manage(a){
+ const src=a.token_from?accounts.find(x=>x.id===a.token_from):a,uses=accounts.filter(x=>x.token_from===a.id).map(x=>x.name),org=a.kind==="organization";
+ const s=stateOf(a),sl=s==="bad"?"Expired":s==="warn"?"Expires soon":"Connected";
+ const d=dialog(`${dhead("Manage access",a.name)}
+ <div class="db"><dl class="kv">
+  <dt>Account type</dt><dd>${org?"Company page":"Personal profile"}</dd>
+  <dt>Status</dt><dd><span class="chip ${s==="ok"?"":s}">${sl}</span></dd>
+  <dt>${org?"Publishes with":"Authorization"}</dt><dd>${org?(src?esc(src.name)+"’s connection":"Connection missing"):esc(expiryNote(a))}</dd>
+  ${org&&src?`<dt>Authorization</dt><dd>${esc(expiryNote(a))}</dd>`:""}
+  ${uses.length?`<dt>Also used by</dt><dd>${uses.map(esc).join(", ")}</dd>`:""}
+ </dl></div>
+ <div class="df">${isAdmin()?'<button class="btn d" id="rm">Remove account</button>':""}<button class="btn" data-close>Close</button>${org?"":'<button class="btn p" id="rc">Reconnect</button>'}</div>`);
+ const rc=d.querySelector("#rc");if(rc)rc.onclick=()=>location.href="/linkedin/auth/linkedin";
+ const rm=d.querySelector("#rm");if(rm)rm.onclick=()=>{d.close();removeAccount(a)}}
+function confirmDlg(title,body,label,fn){
+ const d=dialog(`${dhead(title)}<div class="db"><p>${body}</p></div><div class="df"><button class="btn" data-close>Cancel</button><button class="btn p" id="ok" style="background:#e0455b;box-shadow:none">${esc(label)}</button></div>`);
+ d.querySelector("#ok").onclick=async e=>{e.currentTarget.disabled=true;try{await fn();d.close()}catch(x){toast(x.message);d.close()}}}
+function removeAccount(a){
+ const uses=accounts.filter(x=>x.token_from===a.id).map(x=>x.name);
+ confirmDlg("Remove "+a.name+"?","Scheduled posts for this account will be cancelled."+(uses.length?" Company pages that publish with it ("+uses.map(esc).join(", ")+") are removed too.":""),"Remove account",async()=>{await api("/linkedin/api/accounts/"+a.id,{method:"DELETE"});await reload();toast("Account removed")})}
+function removeMember(u){
+ confirmDlg("Remove "+u.name+"?","They will lose access to this workspace. Their scheduled posts stay in the queue.","Remove member",async()=>{await api("/linkedin/api/users/"+u.id,{method:"DELETE"});await reload();toast("Member removed")})}
+function inviteDone(r){
+ const url=location.origin+"/classic.html",d=dialog(`${dhead("Invite ready","Autopilot doesn’t send email, so share these details with "+r.name+" yourself.")}
+ <div class="db"><dl class="kv"><dt>Email</dt><dd>${esc(r.email)}</dd><dt>Role</dt><dd>${r.role==="admin"?"Admin":"Editor"}</dd><dt>Sign in at</dt><dd>${esc(url)}</dd></dl>
+  <label class="lbl">Temporary password</label><div class="pw"><div class="fld"><input readonly id="tp" value="${esc(r.tempPassword)}" aria-label="Temporary password" style="width:100%"></div><button class="btn" id="cpy">${ic("copy")}Copy</button></div>
+  <p class="hint">This is the only time the password is shown.</p></div>
+ <div class="df"><button class="btn p" data-close>Done</button></div>`);
+ d.querySelector("#cpy").onclick=async()=>{const v=d.querySelector("#tp");try{await navigator.clipboard.writeText(v.value);toast("Copied")}catch{v.select();document.execCommand&&document.execCommand("copy");toast("Copied")}}}
+
+/* ---- wiring ---- */
+$("conn").onclick=e=>openMenu(e.currentTarget,[
+ {icon:"inm",label:"LinkedIn profile",sub:"Publish as yourself",fn:()=>location.href="/linkedin/auth/linkedin"},
+ {icon:"building",label:"Company page",sub:isAdmin()?"Needs approved API access":"Admins only",off:!isAdmin(),fn:companyDialog}],"right");
+$("sctg").onclick=()=>{scTouched=true;setColl($("sc").dataset.c==="1")};
+$("sc").querySelector(".pheader").addEventListener("click",e=>{if(!e.target.closest("button,a")){scTouched=true;setColl($("sc").dataset.c==="1")}});
+$("profiles").onclick=$("pages").onclick=e=>{
+ const b=e.target.closest("[data-a]");if(!b)return;const a=accounts.find(x=>x.id==b.closest(".prow").dataset.id);if(!a)return;
+ if(b.dataset.a==="manage")return manage(a);
+ openMenu(b,[
+  {icon:"gear",label:"Manage access",fn:()=>manage(a)},
+  ...(a.kind==="member"?[{icon:"refresh",label:"Reconnect",fn:()=>location.href="/linkedin/auth/linkedin"}]:[]),
+  ...(isAdmin()?[{icon:"trash",label:"Remove account",danger:1,fn:()=>removeAccount(a)}]:[])],"right")};
+$("tbl").onclick=e=>{const b=e.target.closest("[data-a=member]");if(!b)return;const u=users.find(x=>x.id==b.closest(".tr").dataset.id);if(!u)return;
+ const self=u.id===me.id;
+ openMenu(b,[{icon:"trash",label:self?"You can’t remove yourself":"Remove from workspace",danger:!self,off:self||!isAdmin(),fn:()=>removeMember(u)}],"right")};
+$("isend").onclick=async e=>{
+ const em=$("ie").value.trim();if(!/^\S+@\S+\.\S+$/.test(em)){toast("Enter a valid email address.");$("ie").focus();return}
+ const b=e.currentTarget;b.disabled=true;
+ try{const r=await api("/linkedin/api/users",{method:"POST",body:{email:em,role:$("ir").value}});$("ie").value="";users=await api("/linkedin/api/users");renderStats();renderTeam();inviteDone(r)}
+ catch(x){toast(x.message)}b.disabled=false};
+$("ie").onkeydown=e=>{if(e.key==="Enter")$("isend").click()};
+$("guide").onclick=e=>{e.preventDefault();requirements()};
+$("rfs").onclick=async e=>{const b=e.currentTarget;b.classList.add("spin");b.disabled=true;
+ try{await reload(true);toast("Status refreshed")}catch(x){toast(x.message)}
+ b.classList.remove("spin");b.disabled=false};
+document.querySelectorAll(".pt").forEach(b=>b.onclick=()=>{if(b.dataset.s==="sc"){scTouched=true;setColl(true)}document.querySelectorAll(".pt").forEach(x=>x.setAttribute("aria-pressed",x===b));
+ $(b.dataset.s).scrollIntoView({behavior:matchMedia("(prefers-reduced-motion:reduce)").matches?"auto":"smooth",block:"start"})});
+document.querySelectorAll(".tab[data-go]").forEach(t=>t.onclick=()=>location.href=t.dataset.go);
+$("out").onclick=async()=>{const r=await api("/linkedin/api/logout",{method:"POST"}).catch(()=>({}));location.href=r.owner?"/":"/linkedin/classic.html"};
+
+async function reload(){
+ const[a,u,s]=await Promise.all([api("/linkedin/api/accounts"),api("/linkedin/api/users"),api("/linkedin/api/status").catch(()=>null)]);
+ accounts=a;users=u;status=s;checked=new Date();renderAll()}
+(async()=>{
+ renderWeek();
+ try{
+  me=await api("/linkedin/api/me");$("me").textContent=me.name+(me.role==="admin"?" (admin)":"");
+  const[a,u,s,p]=await Promise.all([api("/linkedin/api/accounts"),api("/linkedin/api/users"),api("/linkedin/api/status").catch(()=>null),api("/linkedin/api/posts").catch(()=>[])]);
+  accounts=a;users=u;status=s;posts=p;checked=new Date();renderAll()
+ }catch(e){toast(e.message)}
+})();
+</script>
+<script src="/linkedin/shell.js"></script>
+</body>
+</html>

@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Autopilot for LinkedIn</title>
+<style>
+:root{--ink:#141B34;--ink2:#232C52;--bg:#F3F5FB;--card:#fff;--line:#E1E5F0;--text:#1B2340;--muted:#6B7391;--v:#6C4CF1;--vd:#5638D6;--vl:#ECE8FE;--mint:#1FC59A;--ml:#DDF7EF;--al:#FDF1D8;--at:#8A5B00;--rose:#E5484D;--rl:#FCE5E6;--field:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#0E1326;--card:#171E3A;--line:#2A3358;--text:#E9ECF8;--muted:#98A1C6;--vl:#2A2560;--ml:#0E3B33;--al:#3D2F0E;--at:#F5C765;--rl:#44191C;--field:#0E1326}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 "Segoe UI",system-ui,sans-serif}
+svg{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}button{font:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--v);outline-offset:2px}
+.hero{background:linear-gradient(160deg,var(--ink),var(--ink2));color:#fff;padding:20px 20px;border-radius:0 0 26px 26px}
+.w{max-width:1040px;margin:0 auto}.brand{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.logo{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,var(--v),#9B7BFF);display:grid;place-items:center}.logo svg{width:19px;stroke:#fff}
+h1{margin:0;font-size:20px}.brand p{margin:0;color:#AEB6D8;font-size:13px}.sp{margin-left:auto}
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-top:20px}.day{text-align:center;font-size:12px;color:#AEB6D8}
+.bar{height:56px;border-radius:9px;background:rgba(255,255,255,.08);position:relative;overflow:hidden;margin-bottom:4px}.fill{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(180deg,#A58BFF,var(--v))}
+.bar b{position:absolute;top:5px;width:100%;color:#fff;font-size:12px;z-index:1}
+nav{display:flex;gap:8px;padding:16px;max-width:1040px;margin:0 auto;flex-wrap:wrap}
+.tab{display:flex;gap:8px;align-items:center;border:0;border-radius:999px;padding:8px 16px;background:transparent;color:var(--muted);font-weight:600}.tab svg{width:16px;height:16px}
+.tab.on{background:var(--card);color:var(--v);box-shadow:0 1px 3px rgba(20,27,52,.15)}
+main{max-width:1040px;margin:0 auto;padding:0 16px 40px}.sec{display:none}.sec.on{display:grid;gap:16px;grid-template-columns:1fr 1fr}
+.card{background:var(--card);border:1.5px solid var(--line);border-radius:18px;padding:20px}.full{grid-column:1/-1}
+h2{margin:0 0 12px;font-size:16px}
+textarea,input,select{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:12px 12px;font:inherit;color:var(--text);background:var(--field)}
+textarea:focus,input:focus,select:focus{outline:0;border-color:var(--v)}label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:12px}label>*{margin-top:4px;font-weight:400}
+.btn{border:0;border-radius:11px;padding:12px 16px;font-weight:700;background:var(--v);color:#fff}.btn:hover{background:var(--vd)}
+.btn.g{background:transparent;border:1.5px solid var(--line);color:var(--text)}.btn.d{background:var(--rl);color:var(--rose)}.btn.s{padding:4px 12px;font-size:13px;border-radius:8px}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.row .grow{flex:1}
+.steps{list-style:none;display:flex;gap:8px;padding:0;margin:0 0 16px}.steps li{display:flex;gap:8px;align-items:center;color:var(--muted);font-weight:600;font-size:13px}
+.steps span{width:24px;height:24px;border-radius:50%;background:var(--line);display:grid;place-items:center;font-size:12px}.steps li::after{content:"";width:22px;height:2px;background:var(--line)}.steps li:last-child::after{display:none}
+.steps .on{color:var(--text)}.steps .on span{background:var(--v);color:#fff}.steps .ok span{background:var(--mint);color:#053B2D}
+.st{display:none}.st.on{display:block}
+.chip{border:1.5px solid var(--line);background:var(--card);color:var(--text);border-radius:999px;padding:4px 12px;font-size:13px;font-weight:600;margin:0 8px 8px 0}.chip:hover,.chip.on{border-color:var(--v);background:var(--vl);color:var(--v)}
+.item{border:1.5px solid var(--line);border-radius:14px;padding:12px;margin-bottom:12px}.meta{display:flex;gap:8px;font-size:13px;color:var(--muted);font-weight:600;margin-bottom:4px;align-items:center;flex-wrap:wrap}
+.badge{margin-left:auto;border-radius:999px;padding:2px 12px;font-size:12px;font-weight:700}.b-scheduled,.b-publishing{background:var(--vl);color:var(--v)}.b-published{background:var(--ml);color:var(--mint)}.b-draft{background:rgba(120,130,170,.18);color:#9aa3cc}.b-failed{background:var(--rl);color:var(--rose)}
+.item p{margin:0 0 8px;white-space:pre-wrap;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.err{color:var(--rose);font-size:13px;margin:0 0 8px}
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}.kpi{border:1.5px solid var(--line);border-radius:14px;padding:12px;text-align:center}.kpi b{font-size:22px;display:block}.kpi small{color:var(--muted)}
+.chart{display:flex;align-items:flex-end;gap:8px;height:120px}.chart div{flex:1;background:linear-gradient(180deg,#A58BFF,var(--v));border-radius:6px 6px 0 0;position:relative;min-height:3px}.chart small{position:absolute;bottom:-20px;left:0;right:0;text-align:center;color:var(--muted);font-size:12px}
+.note{color:var(--muted);font-size:13px}.empty{text-align:center;color:var(--muted);padding:24px}
+.err{display:none;background:#FEE2E2;color:#991B1B;border:1px solid #FCA5A5;border-radius:10px;padding:12px 12px;font-size:13px;font-weight:600;margin:12px 0}.err.on{display:block}.pwrow{display:flex;gap:8px;align-items:stretch}.pwrow input{flex:1}.login{max-width:380px;margin:60px auto;padding:0 16px}.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 20px;border-radius:999px;font-weight:600;opacity:0;transition:.25s;pointer-events:none}.toast.on{opacity:1}
+.banners{max-width:1040px;margin:12px auto 0;padding:0 16px;display:grid;gap:8px}.banners:empty{display:none}
+.alert{display:flex;gap:12px;align-items:center;flex-wrap:wrap;border:1.5px solid;border-radius:14px;padding:12px 16px;font-size:14px}.alert .grow{flex:1;min-width:200px}.alert a{text-decoration:none}
+.alert.warn{background:var(--al);color:var(--at);border-color:var(--at)}.alert.bad{background:var(--rl);color:var(--rose);border-color:var(--rose)}
+.thumbs{display:grid;gap:8px;margin:12px 0 4px}.thumb{display:flex;gap:12px;align-items:center;border:1.5px solid var(--line);border-radius:12px;padding:8px}.thumb>div{flex:1;min-width:0}
+.thumb img,.thumb video{width:64px;height:64px;object-fit:cover;border-radius:8px;background:var(--line);flex:none}.tn{font-size:12px;color:var(--muted);margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.thumb input{padding:8px 12px;font-size:13px}.thumb progress{flex:1}
+.qm{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 8px}.qm img,.qm video{width:88px;height:88px;object-fit:cover;border-radius:10px;background:var(--line)}.qm video{width:200px;height:auto;max-height:130px}
+.pollv{border:1.5px solid var(--line);border-radius:12px;padding:12px 12px;margin:0 0 8px;font-size:14px}.pollv div{padding:3px 0}.pollv small{color:var(--muted)}
+.pollf{margin-top:12px}.pollf .row label{margin:0}.set-ok{color:var(--mint)}.set-list{margin:12px 0 0;padding:0;list-style:none;font-size:13px;color:var(--muted)}.set-list li{padding:4px 0;border-top:1px solid var(--line)}
+@media(max-width:800px){.sec.on{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}}
+</style></head><body>
+<div id="app"></div><div class="toast" id="toast" role="status"></div>
+<script>
+const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const pad=n=>String(n).padStart(2,'0'),loc=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const fmt=ms=>new Date(ms).toLocaleString([],{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove('on'),2400)}
+async function api(p,o={}){const r=await fetch(p,{method:o.method||'GET',headers:{'Content-Type':'application/json'},body:o.body?JSON.stringify(o.body):undefined});
+  const j=await r.json().catch(()=>({}));if(!r.ok){if(r.status===401&&p!=='/linkedin/api/login'){me=null;showLogin()}throw new Error(j.error||'Something went wrong')}return j}
+let me=null,accounts=[],posts=[],status=null,step=1,tab=(location.hash||'#schedule').slice(1);
+const IC={schedule:'<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/>',queue:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',analytics:'<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>',settings:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  accounts:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>'};
+
+async function showLogin(){
+  const st=await fetch('/linkedin/api/setup').then(r=>r.json()).catch(()=>({needed:false}));if(st.needed)return showSetup();
+  $('#app').innerHTML=`<div class="login card"><h1 style="color:var(--text);margin-bottom:4px">Autopilot for LinkedIn</h1><p class="note">Sign in to your team workspace.</p>
+<label>Email<input id="em" type="email" autocomplete="username"></label><label>Password<input id="pw" type="password" autocomplete="current-password"></label>
+<div class="err" id="lerr" role="alert"></div><button class="btn" style="width:100%" id="li">Sign in</button>
+<p class="note" style="margin-top:14px;text-align:center">Platform owner? <a href="/?next=/linkedin/">Sign in with your dashboard password</a></p></div>`;
+  const go=async()=>{$('#lerr').classList.remove('on');try{me=await api('/linkedin/api/login',{method:'POST',body:{email:$('#em').value.trim(),password:$('#pw').value}});location.href='/linkedin/'}catch(e){$('#lerr').textContent=e.message;$('#lerr').classList.add('on')}};
+  $('#li').onclick=go;$('#pw').addEventListener('keydown',e=>{if(e.key==='Enter')go()})}
+function showSetup(){
+  $('#app').innerHTML=`<div class="login card"><h1 style="color:var(--text);margin-bottom:4px">Welcome</h1><p class="note">Create the first admin account. The setup code is printed in your server log (look for "First-time setup"), or it is the SETUP_CODE you set on the server.</p>
+<label>Setup code<input id="sc" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="e.g. ABCD-2345"></label><label>Your name<input id="sn" autocomplete="name"></label><label>Email<input id="se" type="email" autocomplete="username"></label><label>Password (10+ characters)<div class="pwrow"><input id="sp" type="password" autocomplete="new-password"><button type="button" class="btn g s" id="sv">Show</button></div></label>
+<div class="err" id="serr" role="alert"></div><button class="btn" style="width:100%" id="sb">Create admin account</button></div>`;
+  const err=m=>{const e=$('#serr');e.textContent=m||'';e.classList.toggle('on',!!m)};
+  $('#sv').onclick=()=>{const p=$('#sp'),h=p.type==='password';p.type=h?'text':'password';$('#sv').textContent=h?'Hide':'Show'};
+  const go=async()=>{err('');const code=$('#sc').value.trim(),email=$('#se').value.trim(),pw=$('#sp').value;
+    if(!code)return err('Enter the setup code from your server log.');
+    if(!/^\S+@\S+\.\S+$/.test(email))return err('Enter a valid email address.');
+    if(pw.length<10)return err('Password must be at least 10 characters (you typed '+pw.length+').');
+    $('#sb').disabled=true;
+    try{me=await api('/linkedin/api/setup',{method:'POST',body:{code,name:$('#sn').value.trim(),email,password:pw}});location.href='/linkedin/'}catch(e){err(e.message);$('#sb').disabled=false}};
+  $('#sb').onclick=go;['sc','sn','se','sp'].forEach(i=>$('#'+i).addEventListener('keydown',e=>{if(e.key==='Enter')go()}))}
+
+async function boot(){[accounts,posts]=await Promise.all([api('/linkedin/api/accounts'),api('/linkedin/api/posts')]);shell();render();loadStatus()}
+async function loadStatus(){try{status=await api('/linkedin/api/status')}catch{status=null}banners()}
+function banners(){const el=$('#banners');if(!el)return;const out=[];
+  for(const t of status?.tokens||[]){const also=t.pages.length?` This also affects ${t.pages.map(esc).join(', ')}.`:'';
+    out.push(`<div class="alert ${t.expired?'bad':'warn'}" role="alert"><span class="grow"><strong>${esc(t.name)}</strong> ${t.expired?'is no longer connected to LinkedIn, so scheduled posts will fail.':`must be reconnected within ${t.days_left} day${t.days_left==1?'':'s'} (access ends ${fmt(t.expires_at)}).`}${also}</span><a href="/linkedin/auth/linkedin"><button class="btn s">Reconnect</button></a></div>`)}
+  if(status&&status.linkedinReady===false)out.push(`<div class="alert warn" role="alert"><span class="grow"><strong>LinkedIn isn't set up yet.</strong> ${me.role==='admin'?'Add your LinkedIn Client ID and Secret to start connecting accounts.':'Ask an admin to add the LinkedIn Client ID and Secret in Settings.'}</span>${me.role==='admin'?'<button class="btn s" onclick="tab=\'settings\';location.hash=tab;render()">Open settings</button>':''}</div>`);
+  const v=status?.version;
+  if(v&&v.level!=='ok')out.push(`<div class="alert ${v.level==='old'?'bad':'warn'}" role="alert"><span class="grow">LinkedIn API version <strong>${esc(v.value)}</strong> ${v.age==null?'looks invalid.':v.level==='old'?`is ${v.age} months old and has probably been retired, so posts may fail.`:`is ${v.age} months old. LinkedIn retires versions after about a year.`} ${me.role==='admin'?'':'Ask an admin to update it.'}</span>${me.role==='admin'?'<button class="btn s" onclick="tab=\'settings\';location.hash=tab;render()">Open settings</button>':''}</div>`);
+  el.innerHTML=out.join('')}
+function shell(){
+  $('#app').innerHTML=`<header class="hero"><div class="w"><div class="brand"><div class="logo"><svg viewBox="0 0 24 24"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg></div>
+  <div><h1>Autopilot for LinkedIn</h1><p id="sub"></p></div><span class="sp"></span><span style="font-size:13px;color:#AEB6D8">${esc(me.name||me.email)} (${me.role})</span><button class="btn g s" style="color:#fff;border-color:rgba(255,255,255,.3)" id="out">Sign out</button></div><div class="week" id="week"></div></div></header><div class="banners" id="banners"></div>
+  <nav>${['schedule','queue','analytics','accounts',...(me.role==='admin'?['settings']:[])].map(t=>`<button class="tab" data-t="${t}"><svg viewBox="0 0 24 24">${IC[t]}</svg>${t[0].toUpperCase()+t.slice(1)}</button>`).join('')}</nav>
+  <main><section class="sec" id="s-schedule"></section><section class="sec" id="s-queue"></section><section class="sec" id="s-analytics"></section><section class="sec" id="s-accounts"></section><section class="sec" id="s-settings"></section></main>`;
+  $('#out').onclick=async()=>{const r=await api('/linkedin/api/logout',{method:'POST'}).catch(()=>({}));if(r.owner){location.href='/';return}me=null;showLogin()};
+  $$('.tab').forEach(b=>b.onclick=()=>{tab=b.dataset.t;location.hash=tab;render()})}
+function render(){if(tab==='settings'&&me.role!=='admin')tab='schedule';$$('.tab').forEach(b=>b.classList.toggle('on',b.dataset.t===tab));$$('.sec').forEach(s=>s.classList.toggle('on',s.id==='s-'+tab));week();
+  ({schedule:vSchedule,queue:vQueue,analytics:vAnalytics,accounts:vAccounts,settings:vSettings})[tab]?.()}
+function week(){const st=new Date();st.setHours(0,0,0,0);const ds=[...Array(7)].map((_,i)=>{const d=new Date(st);d.setDate(d.getDate()+i);return d});
+  const c=ds.map(d=>posts.filter(p=>p.status==='scheduled'&&new Date(p.when_at).toDateString()===d.toDateString()).length),mx=Math.max(3,...c),t=c.reduce((a,b)=>a+b,0);
+  $('#week').innerHTML=ds.map((d,i)=>`<div class="day"><div class="bar"><div class="fill" style="height:${c[i]?24+c[i]/mx*76:0}%"></div>${c[i]?`<b>${c[i]}</b>`:''}</div>${d.toLocaleDateString([],{weekday:'short'})}</div>`).join('');
+  $('#sub').textContent=t?`${t} post${t>1?'s':''} will publish this week, even with your computer off`:'Nothing scheduled this week'}
+
+const blank=()=>({t:'',a:'',w:'',type:'text',media:[],up:[],poll:{q:'',o:['',''],d:'THREE_DAYS'}});
+let draft=blank(),upSeq=0;
+const DUR={ONE_DAY:'1 day',THREE_DAYS:'3 days',SEVEN_DAYS:'7 days',FOURTEEN_DAYS:'14 days'};
+const TYPES=[['text','Text'],['image','Images'],['video','Video'],['poll','Poll']];
+const lim=()=>status?.limits||{imageMb:10,videoMb:200};
+const fsize=n=>n>=1048576?(n/1048576).toFixed(1)+' MB':Math.round(n/1024)+' KB';
+const mediaTag=(m,cls)=>m.kind==='video'?`<video src="/linkedin/api/media/${m.id}" preload="metadata" ${cls==='qm'?'controls':''} muted></video>`:`<img src="/linkedin/api/media/${m.id}" alt="${esc(m.label||'')}">`;
+
+function upload(file,onp){return new Promise((res,rej)=>{const x=new XMLHttpRequest();x.open('POST','/linkedin/api/media');x.setRequestHeader('Content-Type',file.type||'application/octet-stream');x.setRequestHeader('X-Filename',encodeURIComponent(file.name));
+  x.upload.onprogress=e=>e.lengthComputable&&onp(e.loaded/e.total);
+  x.onload=()=>{let j={};try{j=JSON.parse(x.responseText)}catch{}x.status<300?res(j):(x.status===401&&showLogin(),rej(new Error(j.error||'Upload failed')))};
+  x.onerror=()=>rej(new Error('Upload failed. Check your connection and the file size.'));x.send(file)})}
+async function addFiles(files){const kind=draft.type,max=(kind==='video'?lim().videoMb:lim().imageMb)*1048576;
+  let room=(kind==='video'?1:9)-draft.media.length-draft.up.length;
+  for(const f of [...files]){
+    if(room<=0){toast(kind==='video'?'One video per post':'Up to 9 images per post');break}
+    if(f.size>max){toast(`${f.name} is over ${max/1048576} MB`);continue}
+    room--;const u={k:++upSeq,name:f.name,pct:0};draft.up.push(u);drawExt();
+    try{const j=await upload(f,p=>{u.pct=p;const e=document.getElementById('pg'+u.k);if(e)e.value=p});
+      draft.up=draft.up.filter(x=>x!==u);
+      if(draft.type!==kind){api('/linkedin/api/media/'+j.id,{method:'DELETE'}).catch(()=>{});continue}
+      draft.media.push({id:j.id,name:j.name,kind:j.kind,size:j.size,label:''})}
+    catch(e){draft.up=draft.up.filter(x=>x!==u);toast(e.message)}
+    drawExt()}}
+
+function drawExt(){const el=$('#ext');if(!el)return;const t=draft.type;
+  if(t==='text'){el.innerHTML='';return}
+  if(t==='poll'){const p=draft.poll;
+    el.innerHTML=`<div class="pollf"><label>Poll question<input id="pq" maxlength="140" value="${esc(p.q)}" placeholder="Ask your audience something"></label>${p.o.map((o,i)=>`<label>Option ${i+1}<input data-po="${i}" maxlength="30" value="${esc(o)}"></label>`).join('')}
+    <div class="row">${p.o.length<4?'<button class="btn g s" id="pa">Add option</button>':''}<label style="margin:0">Open for <select id="pd">${Object.entries(DUR).map(([k,v])=>`<option value="${k}" ${p.d===k?'selected':''}>${v}</option>`).join('')}</select></label></div><p class="note">Question up to 140 characters, 2 to 4 options of up to 30 characters.</p></div>`;
+    $('#pq').oninput=e=>p.q=e.target.value;$$('[data-po]').forEach(i=>i.oninput=()=>p.o[+i.dataset.po]=i.value);$('#pd').onchange=e=>p.d=e.target.value;
+    const pa=$('#pa');if(pa)pa.onclick=()=>{p.o.push('');drawExt()};return}
+  const v=t==='video',full=v?draft.media.length+draft.up.length>=1:draft.media.length+draft.up.length>=9;
+  el.innerHTML=`<div class="row" style="margin-top:6px"><button class="btn g" id="pk" ${full?'disabled':''}>${v?'Choose a video':'Add images'}</button><span class="note">${v?`MP4, up to ${lim().videoMb} MB`:`JPG, PNG or GIF, up to ${lim().imageMb} MB each, max 9. Two or more appear as a gallery.`}</span></div>
+  <input type="file" id="fl" hidden accept="${v?'video/mp4':'image/jpeg,image/png,image/gif'}" ${v?'':'multiple'}>
+  <div class="thumbs">${draft.media.map((m,i)=>`<div class="thumb">${mediaTag(m)}<div><div class="tn">${esc(m.name)} · ${fsize(m.size)}</div><input data-al="${i}" maxlength="${v?200:1000}" value="${esc(m.label)}" placeholder="${v?'Video title (optional)':'Alt text for screen readers (recommended)'}" aria-label="${v?'Video title':'Alt text'}"></div><button class="btn d s" data-rmm="${i}">Remove</button></div>`).join('')}
+  ${draft.up.map(u=>`<div class="thumb"><div class="tn" style="margin:0;flex:1">Uploading ${esc(u.name)}</div><progress id="pg${u.k}" max="1" value="${u.pct}"></progress></div>`).join('')}</div>`;
+  $('#pk').onclick=()=>$('#fl').click();$('#fl').onchange=e=>{addFiles(e.target.files);e.target.value=''};
+  $$('[data-al]').forEach(i=>i.oninput=()=>draft.media[+i.dataset.al].label=i.value);
+  $$('[data-rmm]').forEach(b=>b.onclick=()=>{const [m]=draft.media.splice(+b.dataset.rmm,1);api('/linkedin/api/media/'+m.id,{method:'DELETE'}).catch(()=>{});drawExt()})}
+
+function summary(){const t=draft.type;
+  if(t==='poll'){const p=draft.poll;return `<div class="pollv"><strong>${esc(p.q)}</strong>${p.o.filter(x=>x.trim()).map(o=>`<div>○ ${esc(o)}</div>`).join('')}<small>Open for ${DUR[p.d]}</small></div>`}
+  return draft.media.length?`<div class="qm">${draft.media.map(m=>mediaTag(m,'qm')).join('')}</div>`:''}
+
+function vSchedule(){
+  const usable=accounts.filter(a=>!a.expired);
+  if(!usable.length){$('#s-schedule').innerHTML=`<div class="card full empty"><strong>Connect a LinkedIn account first</strong><p>Posts are published through LinkedIn's official API, so each account needs to be authorized once.</p><button class="btn" onclick="tab='accounts';location.hash=tab;render()">Connect an account</button></div>`;return}
+  const w3=step===3?new Date(draft.w).getTime():0,who=accounts.find(a=>a.id==draft.a)?.name;
+  $('#s-schedule').innerHTML=`<div class="card full"><ol class="steps"><li class="${step==1?'on':step>1?'ok':''}"><span>1</span>Write</li><li class="${step==2?'on':step>2?'ok':''}"><span>2</span>Time</li><li class="${step==3?'on':''}"><span>3</span>Confirm</li></ol>
+  <div class="st ${step==1?'on':''}"><label>Post as<select id="acc">${usable.map(a=>`<option value="${a.id}">${esc(a.name)} (${a.kind})</option>`).join('')}</select></label>
+  <div role="group" aria-label="Post type">${TYPES.map(([k,l])=>`<button class="chip ${draft.type===k?'on':''}" data-ty="${k}" aria-pressed="${draft.type===k}">${l}</button>`).join('')}</div>
+  <label>${draft.type==='poll'?'Text above the poll':'Post text'}<textarea id="tx" rows="${draft.type==='text'?8:5}" maxlength="3000" placeholder="What do you want to talk about?"></textarea></label><div id="ext"></div>
+  <div class="row"><span class="note" id="cnt">0/3000</span><span class="sp"></span><button class="btn" id="n1">Choose time</button></div></div>
+  <div class="st ${step==2?'on':''}"><div>${[['hour','In 1 hour'],['tom','Tomorrow 9:00'],['tue','Next Tuesday 8:00'],['thu','Next Thursday 12:00']].map(([k,l])=>`<button class="chip" data-q="${k}">${l}</button>`).join('')}</div>
+  <label>Date and time (${Intl.DateTimeFormat().resolvedOptions().timeZone})<input type="datetime-local" id="wh"></label><div class="row"><button class="btn g" id="b1">Back</button><button class="btn" id="n2">Review</button></div></div>
+  <div class="st ${step==3?'on':''}"><div class="item"><div class="meta">${step==3?`${fmt(w3)} as ${esc(who)}${draft.type!=='text'?' · '+draft.type:''}`:''}</div><p style="-webkit-line-clamp:unset">${esc(draft.t)}</p>${step==3?summary():''}</div><div class="row"><button class="btn g" id="b2">Back</button><button class="btn" id="ok">Schedule post</button></div></div></div>`;
+  const tx=$('#tx');tx.value=draft.t;if(draft.a)$('#acc').value=draft.a;$('#wh').value=draft.w;drawExt();
+  $('#acc').onchange=e=>draft.a=e.target.value;
+  tx.oninput=()=>{draft.t=tx.value;$('#cnt').textContent=tx.value.length+'/3000'};tx.oninput();
+  $$('[data-ty]').forEach(b=>b.onclick=()=>{const t=b.dataset.ty;if(t===draft.type)return;if(draft.up.length)return toast('Wait for the upload to finish');
+    draft.media.forEach(m=>api('/linkedin/api/media/'+m.id,{method:'DELETE'}).catch(()=>{}));draft.media=[];draft.type=t;vSchedule()});
+  $('#n1').onclick=()=>{const t=draft.type;if(!tx.value.trim())return toast('Write your post first');
+    if(t==='image'||t==='video'){if(draft.up.length)return toast('Wait for the upload to finish');if(!draft.media.length)return toast(t==='video'?'Add a video first':'Add at least one image')}
+    if(t==='poll'){if(!draft.poll.q.trim())return toast('Write the poll question');if(draft.poll.o.filter(x=>x.trim()).length<2)return toast('A poll needs at least two options')}
+    draft.a=$('#acc').value;if(!draft.w)draft.w=loc(new Date(Date.now()+36e5));step=2;vSchedule()};
+  $$('[data-q]').forEach(b=>b.onclick=()=>{const q=b.dataset.q;let d=new Date();
+    if(q==='hour')d=new Date(Date.now()+36e5);else if(q==='tom'){d.setDate(d.getDate()+1);d.setHours(9,0,0,0)}else{const t=q==='tue'?2:4;d.setHours(q==='tue'?8:12,0,0,0);do d.setDate(d.getDate()+1);while(d.getDay()!==t)}
+    $('#wh').value=draft.w=loc(d);$$('[data-q]').forEach(x=>x.classList.toggle('on',x===b))});
+  $('#wh').onchange=e=>draft.w=e.target.value;$('#b1').onclick=()=>{step=1;vSchedule()};
+  $('#n2').onclick=()=>{const w=new Date($('#wh').value).getTime();if(!w||w<Date.now())return toast('Pick a time in the future');draft.w=$('#wh').value;step=3;vSchedule()};
+  $('#b2').onclick=()=>{step=2;vSchedule()};
+  $('#ok').onclick=async e=>{const btn=e.target;btn.disabled=true;const t=draft.type;
+    try{await api('/linkedin/api/posts',{method:'POST',body:{accountId:+draft.a,text:draft.t,whenAt:new Date(draft.w).getTime(),type:t,
+      media:t==='image'||t==='video'?draft.media.map(m=>({id:m.id,alt:m.label})):undefined,
+      poll:t==='poll'?{question:draft.poll.q,options:draft.poll.o,duration:draft.poll.d}:undefined}});
+      draft=blank();step=1;posts=await api('/linkedin/api/posts');tab='queue';location.hash=tab;render();toast('Scheduled')}catch(err){btn.disabled=false;toast(err.message)}};}
+
+function extra(p){let m=[],poll=null;try{m=JSON.parse(p.media_json||'[]')}catch{}try{poll=p.poll_json?JSON.parse(p.poll_json):null}catch{}
+  if(p.type==='poll'&&poll)return `<div class="pollv"><strong>${esc(poll.question)}</strong>${poll.options.map(o=>`<div>○ ${esc(o)}</div>`).join('')}<small>Open for ${DUR[poll.duration]||poll.duration}</small></div>`;
+  if((p.type==='image'||p.type==='video')&&m.length){
+    if(p.status==='published')return `<p class="note" style="margin:0 0 8px">${p.type==='video'?'1 video':m.length+' image'+(m.length>1?'s':'')} published</p>`;
+    return `<div class="qm">${m.map(x=>p.type==='video'?`<video src="/linkedin/api/media/${x.id}" preload="metadata" controls muted></video>`:`<img src="/linkedin/api/media/${x.id}" alt="${esc(x.label||'')}">`).join('')}</div>`}
+  return ''}
+function vQueue(){
+  $('#s-queue').innerHTML=`<div class="card full"><h2>Queue</h2>${posts.length?posts.map(p=>`<article class="item" data-id="${p.id}"><div class="meta">${fmt(p.when_at)} · ${esc(p.account_name||'Removed account')} · by ${esc(p.author_name||'unknown')}${p.type&&p.type!=='text'?' · '+p.type:''}<span class="badge b-${p.status}">${p.status}</span></div>
+  <p>${esc(p.text)}</p>${extra(p)}${p.error?`<p class="err">${esc(p.error)}</p>`:''}<div class="row">${['scheduled','failed'].includes(p.status)?`<button class="btn g s" data-a="now">${p.status==='failed'?'Retry now':'Post now'}</button>`:''}${p.status!=='publishing'?'<button class="btn d s" data-a="del">Delete</button>':''}</div></article>`).join(''):'<div class="empty"><strong>Nothing here yet</strong><p>Scheduled posts show up here.</p></div>'}</div>`}
+document.addEventListener('click',async e=>{const b=e.target.closest('[data-a]');if(!b||!b.closest('#s-queue'))return;const id=b.closest('.item').dataset.id;
+  try{if(b.dataset.a==='del'){if(!confirm('Delete this post?'))return;await api('/linkedin/api/posts/'+id,{method:'DELETE'})}else{await api(`/linkedin/api/posts/${id}/retry`,{method:'POST'});toast('Sending')}
+    posts=await api('/linkedin/api/posts');render()}catch(err){toast(err.message)}});
+
+async function vAnalytics(){
+  const a=await api('/linkedin/api/analytics'),n=s=>a.byStatus.find(x=>x.status===s)?.n||0,t=a.totals,mx=Math.max(1,...a.perDay.map(d=>d.n));
+  $('#s-analytics').innerHTML=`<div class="card full"><h2>Publishing</h2><div class="kpis"><div class="kpi"><b>${n('published')}</b><small>Published</small></div><div class="kpi"><b>${n('scheduled')}</b><small>Scheduled</small></div><div class="kpi"><b>${n('failed')}</b><small>Failed</small></div>
+  <div class="kpi"><b>${n('published')?Math.round(n('published')/(n('published')+n('failed'))*100):0}%</b><small>Success rate</small></div><div class="kpi"><b>${posts.length}</b><small>Total posts</small></div></div></div>
+  <div class="card"><h2>Posts published, last 14 days</h2>${a.perDay.length?`<div class="chart" style="margin-bottom:24px">${a.perDay.map(d=>`<div style="height:${d.n/mx*100}%"><small>${d.d.slice(5)}</small></div>`).join('')}</div>`:'<div class="empty">No published posts yet.</div>'}</div>
+  <div class="card"><h2>Company page results</h2><div class="kpis" style="grid-template-columns:repeat(2,1fr)"><div class="kpi"><b>${t.impressions}</b><small>Impressions</small></div><div class="kpi"><b>${t.likes+t.comments+t.shares}</b><small>Reactions, comments, shares</small></div></div>
+  <p class="note">LinkedIn only shares post performance for company pages that have Community Management API access. Personal-profile stats are restricted by LinkedIn and can't be shown here. Numbers refresh hourly.</p>
+  ${a.top.map(p=>`<div class="item"><div class="meta">${esc(p.account_name)} · ${p.likes} likes · ${p.comments} comments</div><p>${esc(p.text)}</p></div>`).join('')}</div>`}
+
+async function vAccounts(){
+  const users=me.role==='admin'?await api('/linkedin/api/users'):[],members=accounts.filter(a=>a.kind==='member');
+  $('#s-accounts').innerHTML=`<div class="card"><h2>LinkedIn accounts</h2>${accounts.map(a=>`<div class="item"><div class="meta">${esc(a.name)} · ${a.kind}<span class="badge ${a.expired?'b-failed':'b-published'}">${a.expired?'expired':'connected'}</span></div>${a.expires_at?`<p class="note">Access ends ${fmt(a.expires_at)}${a.expired?'':` (${Math.ceil((a.expires_at-Date.now())/864e5)} days left)`}. Reconnect before then.</p>`:''}${me.role==='admin'?`<button class="btn d s" data-rm="${a.id}">Remove</button>`:''}</div>`).join('')||'<p class="note">No accounts connected.</p>'}
+  <a href="/linkedin/auth/linkedin"><button class="btn" style="margin-top:6px">Connect a LinkedIn profile</button></a></div>
+  ${me.role==='admin'?`<div class="card"><h2>Add a company page</h2><p class="note">Needs Community Management API approval on your LinkedIn app, and a connected profile that administers the page.</p>
+  <label>Page name<input id="on"></label><label>Organization ID (numbers in the page admin URL)<input id="oi" inputmode="numeric"></label><label>Admin profile<select id="ot">${members.map(m=>`<option value="${m.id}">${esc(m.name)}</option>`).join('')}</select></label><button class="btn" id="oa">Add page</button></div>
+  <div class="card full"><h2>Team</h2><div class="row" style="align-items:flex-end"><label class="grow">Name<input id="un"></label><label class="grow">Email<input id="ue" type="email"></label><label class="grow">Password (10+ chars)<input id="up" type="password"></label><label>Role<select id="ur"><option value="editor">Editor</option><option value="admin">Admin</option></select></label><button class="btn" id="ua" style="margin-bottom:10px">Add member</button></div>
+  ${users.map(u=>`<div class="row" style="padding:6px 0;border-top:1px solid var(--line)"><span class="grow">${esc(u.name)} · ${esc(u.email)} · ${u.role}</span>${u.id!==me.id?`<button class="btn d s" data-ru="${u.id}">Remove</button>`:''}</div>`).join('')}</div>`:''}`;
+  $$('[data-rm]').forEach(b=>b.onclick=async()=>{if(confirm('Remove this account and cancel its scheduled posts?')){await api('/linkedin/api/accounts/'+b.dataset.rm,{method:'DELETE'});accounts=await api('/linkedin/api/accounts');posts=await api('/linkedin/api/posts');render()}});
+  $$('[data-ru]').forEach(b=>b.onclick=async()=>{await api('/linkedin/api/users/'+b.dataset.ru,{method:'DELETE'});render()});
+  const oa=$('#oa');if(oa)oa.onclick=async()=>{try{await api('/linkedin/api/accounts/org',{method:'POST',body:{name:$('#on').value,orgId:$('#oi').value,tokenFrom:+$('#ot').value}});accounts=await api('/linkedin/api/accounts');render();toast('Page added')}catch(e){toast(e.message)}};
+  const ua=$('#ua');if(ua)ua.onclick=async()=>{try{await api('/linkedin/api/users',{method:'POST',body:{name:$('#un').value,email:$('#ue').value,password:$('#up').value,role:$('#ur').value}});toast('Member added');render()}catch(e){toast(e.message)}}}
+
+async function vSettings(){
+  const s=await api('/linkedin/api/settings'),v=s.version,conns=accounts.filter(a=>a.kind==='member'&&a.expires_at);
+  const src={settings:'Saved in this app.',env:'Currently read from LINKEDIN_VERSION in your .env file. Saving here overrides it.',default:'Currently the built-in default. Saving here overrides it.'}[s.versionSource];
+  const vm=v.age==null?'':v.level==='ok'?`${v.age} month${v.age==1?'':'s'} old. Fine for now.`:v.level==='soon'?`${v.age} months old. Update it soon.`:`${v.age} months old. LinkedIn has probably retired it.`;
+  $('#s-settings').innerHTML=`<div class="card full"><h2>LinkedIn app</h2>
+  <p class="note">From your app at <a href="https://developers.linkedin.com" target="_blank" rel="noopener">developers.linkedin.com</a>. The secret is stored encrypted on your server, never in GitHub.</p>
+  <div class="row" style="align-items:flex-start"><label class="grow">Client ID<input id="lid" autocomplete="off" value="${esc(s.linkedin.clientId)}"></label>
+  <label class="grow">Client Secret<input id="lse" type="password" autocomplete="new-password" placeholder="${s.linkedin.secretSet?'Saved. Paste a new one to replace it.':'Paste the secret'}"></label></div>
+  <div class="row" style="align-items:flex-start"><label class="grow">Scopes<input id="lsc" value="${esc(s.linkedin.scopes)}"></label>
+  <label class="grow">Public address of this site<input id="lau" value="${esc(s.appUrl)}"></label></div>
+  <p class="note" style="margin:0 0 10px">Scopes: personal profiles use <code>openid profile w_member_social</code>. For company pages (needs Community Management API approval) add <code>w_organization_social r_organization_social</code>.</p>
+  <label>Add this Redirect URL in your LinkedIn app under Auth<div class="row"><input id="lru" class="grow" readonly value="${esc(s.redirectUrl)}"><button class="btn g" id="lcp">Copy</button></div></label>
+  <div class="row"><button class="btn" id="lsv">Save LinkedIn settings</button><span class="note">${s.linkedin.clientId&&s.linkedin.secretSet?'<strong class="set-ok">Ready to connect accounts.</strong>':'Client ID and Secret are both needed.'}</span></div></div>
+  <div class="card"><h2>Connection reminders</h2>
+  <p class="note">LinkedIn logins last about 60 days and can't be refreshed automatically. Everyone on the team sees a banner this many days before a connection ends.</p>
+  <label>Days before expiry<input id="sd" type="number" min="1" max="30" value="${s.reminderDays}"></label>
+  <label>Also post to a Slack or Discord channel (optional)<input id="sw" type="url" autocomplete="off" placeholder="${s.webhook.set?'Saved for '+esc(s.webhook.host)+'. Paste a new address to replace it.':'https://hooks.slack.com/services/...'}"></label>
+  <div class="row"><button class="btn" id="ssv">Save</button><button class="btn g" id="stw" ${s.webhook.set?'':'disabled'}>Send test message</button>${s.webhook.set?'<button class="btn d s" id="srw">Remove webhook</button>':''}</div>
+  <p class="note" style="margin-top:12px">The channel gets one message when a connection enters the window and one if it expires.</p>
+  ${conns.length?`<ul class="set-list">${conns.map(a=>`<li>${esc(a.name)}: ${a.expired?'<strong style="color:var(--rose)">expired</strong>':`ends ${fmt(a.expires_at)} (${Math.ceil((a.expires_at-Date.now())/864e5)} days)`}</li>`).join('')}</ul>`:''}</div>
+  <div class="card"><h2>LinkedIn API version</h2>
+  <p class="note">Sent with every request. LinkedIn releases a version each month and retires old ones after about a year, so update this about once a year. Find current versions in <a href="https://learn.microsoft.com/en-us/linkedin/marketing/versioning" target="_blank" rel="noopener">LinkedIn's versioning guide</a>.</p>
+  <label>Version (YYYYMM)<input id="sv" inputmode="numeric" maxlength="6" value="${esc(s.linkedinVersion)}"></label>
+  <p class="note" style="margin-top:-4px">${esc(src)} ${vm?`<strong class="${v.level==='ok'?'set-ok':''}">${vm}</strong>`:''}</p>
+  <div class="row"><button class="btn" id="vsv">Save version</button><button class="btn g" id="vsg">Use ${esc(s.suggestedVersion)}</button></div>
+  <p class="note" style="margin-top:12px">After changing it, schedule a test post a few minutes out to confirm LinkedIn accepts it. If it doesn't, the post fails with a message pointing back here.</p></div>`;
+  const put=async body=>{try{await api('/linkedin/api/settings',{method:'PUT',body});await loadStatus();toast('Saved');render()}catch(e){toast(e.message)}};
+  $('#lsv').onclick=()=>{const b={linkedinClientId:$('#lid').value.trim(),linkedinScopes:$('#lsc').value.trim(),appUrl:$('#lau').value.trim()},k=$('#lse').value.trim();if(k)b.linkedinClientSecret=k;put(b)};
+  $('#lcp').onclick=()=>{$('#lru').select();navigator.clipboard?.writeText(s.redirectUrl).then(()=>toast('Copied'),()=>toast('Press Ctrl+C to copy'))};
+  $('#ssv').onclick=()=>{const b={reminderDays:+$('#sd').value},w=$('#sw').value.trim();if(w)b.webhookUrl=w;put(b)};
+  $('#stw').onclick=async()=>{try{await api('/linkedin/api/settings/test-webhook',{method:'POST'});toast('Test message sent')}catch(e){toast(e.message)}};
+  const rw=$('#srw');if(rw)rw.onclick=()=>put({webhookUrl:''});
+  $('#vsv').onclick=()=>put({linkedinVersion:$('#sv').value.trim()});$('#vsg').onclick=()=>{$('#sv').value=s.suggestedVersion}}
+
+const NEW={schedule:'/linkedin/',queue:'/linkedin/queue.html',analytics:'/linkedin/analytics.html',accounts:'/linkedin/accounts.html',settings:'/linkedin/settings.html'};
+api('/linkedin/api/me').then(u=>{me=u;location.replace(NEW[tab]||'/linkedin/')}).catch(showLogin);
+</script></body></html>

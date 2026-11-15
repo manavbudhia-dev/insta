@@ -3,7 +3,8 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { assertConfig, config } from './config.js';
 import { api } from './api.js';
-import { checkToken, isLoggedIn, login, logout, makeToken, requireLogin } from './auth.js';
+import { checkToken, endSession, isLoggedIn, login, logout, makeToken, requireLogin } from './auth.js';
+import { createLinkedInApp } from './linkedin/server.js';
 import { db, log, redact } from './db.js';
 import { authorizeUrl, exchangeCode, sealStoredToken, startWebhookWatch } from './instagram.js';
 import { startFlowTimer } from './flows.js';
@@ -26,18 +27,21 @@ const CSP = [
   "font-src 'self' data: https://fonts.gstatic.com", "img-src 'self' data: https:", "media-src 'self' https:",
   "connect-src 'self'", "object-src 'none'", "base-uri 'none'", "form-action 'self'", "frame-ancestors 'none'",
 ].join('; ');
+// The LinkedIn pages keep their scripts inline, so that section gets the same policy with inline scripts allowed.
+const CSP_LINKEDIN = CSP.replace("script-src 'self'", "script-src 'self' 'unsafe-inline'");
 const httpsSite = config.baseUrl.startsWith('https://');
+const isApiPath = (p: string) => /^\/(linkedin\/)?(api|auth)(\/|$)/.test(p);
 
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'same-origin');
-  res.setHeader('Content-Security-Policy', CSP);
+  res.setHeader('Content-Security-Policy', req.path.startsWith('/linkedin') ? CSP_LINKEDIN : CSP);
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   if (httpsSite) res.setHeader('Strict-Transport-Security', 'max-age=31536000');
   // Dashboard data and login/OAuth responses must never be cached by the browser or a proxy.
-  if (req.path.startsWith('/api') || req.path.startsWith('/auth')) res.setHeader('Cache-Control', 'no-store');
+  if (isApiPath(req.path)) res.setHeader('Cache-Control', 'no-store');
   next();
 });
 
@@ -58,10 +62,8 @@ app.use('/media', express.static(path.join(config.dataDir, 'media'), {
   setHeaders: (res) => res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox"),
 }));
 
-app.use(express.json({ limit: '1mb' }));
-
-// Defence in depth on top of SameSite=Strict: a state-changing request from another site is refused outright.
-app.use('/api', (req, res, next) => {
+// Defence in depth on top of SameSite cookies: a state-changing request from another site is refused outright.
+const sameOrigin: express.RequestHandler = (req, res, next) => {
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
   const origin = req.get('origin');
   if (origin) {
@@ -78,7 +80,16 @@ app.use('/api', (req, res, next) => {
     }
   }
   next();
-});
+};
+app.use('/api', sameOrigin);
+
+// LinkedIn post scheduler. Signed in to the dashboard = signed in there as its admin.
+// Mounted before the platform's JSON parser: its media upload streams the raw request body.
+const linkedin = createLinkedInApp({ isOwner: isLoggedIn, endOwnerSession: endSession });
+app.use('/linkedin/api', sameOrigin);
+app.use('/linkedin', linkedin.app);
+
+app.use(express.json({ limit: '1mb' }));
 
 app.post('/api/login', login);
 app.post('/api/logout', logout);
@@ -131,6 +142,7 @@ const server = app.listen(config.port, () => {
   startFlowTimer();
   startWebhookWatch();
   startSnapshots();
+  linkedin.start();
 });
 
 // A stray rejection should be logged, not take the whole worker down mid-send.
@@ -143,7 +155,7 @@ async function shutdown(signal: string): Promise<void> {
   shuttingDown = true;
   console.log(`${signal} received, shutting down`);
   server.close();
-  await stopQueue();
+  await Promise.all([stopQueue(), linkedin.stop()]);
   try {
     db.close();
   } catch {

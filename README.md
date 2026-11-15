@@ -1,7 +1,15 @@
-# DM Autopilot
+# DM Autopilot + LinkedIn Autopilot
 
-A self-hosted Instagram DM automation and post scheduler for **your own** Instagram professional account.
-It uses only the official Instagram API with Unified Login (Meta's current setup), so it follows Meta's messaging rules by design.
+One self-hosted platform, one login, one deploy:
+
+- **Instagram** (`/`): DM automation, flows, inbox, content calendar and insights for **your own** Instagram professional
+  account, using only the official Instagram API with Unified Login (Meta's current setup).
+- **LinkedIn** (`/linkedin/`): schedule text, image, video and poll posts to LinkedIn profiles and company pages through
+  LinkedIn's official Posts API, with a queue, analytics, team members and optional AI-written drafts.
+  See [LinkedIn scheduler](#linkedin-scheduler).
+
+Sign in once with `ADMIN_PASSWORD` and switch between the two with **LinkedIn** in the sidebar and **Instagram** in the
+LinkedIn tab bar.
 
 ## Quick start (one command)
 
@@ -193,6 +201,59 @@ Dropping a wire on empty space opens a menu to create and connect a new step the
 - Flow messages go through the same queue as everything else, so the 24-hour window, hourly cap, per-person limit and human takeover pause all apply.
 - **Comment flows:** Instagram allows one private reply to a comment, as plain text. Links and choices are written into that message, and the flow continues once the person replies. The builder warns about any message that could not be delivered because of this rule.
 
+## LinkedIn scheduler
+
+Open **LinkedIn** in the sidebar. You are signed in there as its admin automatically.
+
+### 1. Create the LinkedIn app
+
+1. Go to <https://developers.linkedin.com> and create an app (it must be associated with a LinkedIn Page).
+2. Under **Products**, add **Share on LinkedIn** and **Sign In with LinkedIn using OpenID Connect** (both self-serve).
+3. Under **Auth**, add the redirect URL `https://insta.zealcoder.in/linkedin/auth/linkedin/callback`
+   (locally: `http://localhost:3000/linkedin/auth/linkedin/callback`). LinkedIn → Settings shows the exact value.
+4. In the dashboard: **LinkedIn → Settings → LinkedIn app**, paste the Client ID and Client Secret.
+5. **LinkedIn → Accounts → Connect account → LinkedIn profile.**
+
+Company pages need LinkedIn's **Community Management API** (reviewed by LinkedIn). Once approved, add
+`w_organization_social r_organization_social` to the scopes in LinkedIn → Settings.
+
+Nothing has to go in `.env`. The LinkedIn data (database, `secrets.json` with its encryption key, queued media) lives in
+`/data/linkedin/` on the same volume as everything else, so the backup command below covers it.
+
+### Team members
+
+LinkedIn → Accounts → Team → **Send invite** creates an editor or admin with a temporary password (no email is sent;
+pass it on yourself). Team members sign in at `/linkedin/classic.html` with email and password and only see the LinkedIn
+section; the Instagram dashboard still needs `ADMIN_PASSWORD`.
+
+### Auto content (optional)
+
+LinkedIn → Auto content fills empty time slots with drafts you approve: paste posts written in claude.ai, push them from
+n8n/Zapier/Make to `POST https://insta.zealcoder.in/linkedin/api/inbound` with a token, or add an Anthropic API key
+(`ANTHROPIC_API_KEY` in `.env` or in the page) to have them written automatically.
+
+### Moving over from the separate LinkedIn app
+
+Copy the old app's data folder (`autopilot.db`, `secrets.json` and `media/`, all three together) into the volume at
+`/data/linkedin/`, then restart. Your posts, accounts and team come along; the first admin of the old app becomes the
+platform owner. In the LinkedIn developer portal, change the redirect URL to the new `/linkedin/auth/linkedin/callback`
+one. Old team-member logins need to sign in again once.
+
+```bash
+docker compose cp ./old-linkedin-data/. app:/data/linkedin/
+```
+
+```bash
+docker compose restart app
+```
+
+### How publishing works
+
+Every 30 seconds due posts are published with `POST /rest/posts`. Each post is claimed atomically, temporary errors retry
+up to 3 times, and a post interrupted by a restart is marked failed instead of retried so it can never go out twice.
+LinkedIn tokens last about 60 days and cannot be renewed silently; a banner (and optionally a Slack/Discord message)
+warns before a connection expires.
+
 ## Day-to-day
 
 | Task | Command |
@@ -238,7 +299,8 @@ npm run dev
 `npm test` boots the real server against a mock Instagram API and exercises webhooks, rules, the send queue,
 comment polling, uploads and scheduled publishing. `npm run dev` needs a `.env` file.
 
-Layout: `src/engine.ts` (rule matching), `src/queue.ts` (rate-limited sender), `src/webhook.ts`, `src/poller.ts`
+Layout: `src/linkedin/` (LinkedIn scheduler, mounted at `/linkedin` by `src/server.ts`; pages in `public/linkedin/`),
+`src/engine.ts` (rule matching), `src/queue.ts` (rate-limited sender), `src/webhook.ts`, `src/poller.ts`
 (comment fallback), `src/scheduler.ts` (publishing, token refresh), `src/api.ts` (dashboard API), `public/` (dashboard).
 
 ---

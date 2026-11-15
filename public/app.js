@@ -55,6 +55,7 @@
     link: '<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>',
     chart: '<path d="M3 3v18h18"/><path d="M7 15v2M11 10v7M15 12v5M19 6v11"/>',
     image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3-3-9 9"/>',
+    linkedin: '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 10v7M8 7v.01M12 17v-4a2 2 0 0 1 4 0v4M12 10v7"/>',
   };
   const ic = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${P[n] || ''}</svg>`;
   const IG = (cls = '') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6.5" fill="url(#g-ig)"/><rect x="5.3" y="5.3" width="13.4" height="13.4" rx="4" fill="none" stroke="#fff" stroke-width="1.7"/><circle cx="12" cy="12" r="3.1" fill="none" stroke="#fff" stroke-width="1.7"/><circle cx="16.3" cy="7.7" r="1" fill="#fff"/></svg>`;
@@ -386,6 +387,9 @@
     $('#login').hidden = true;
     $('#app').hidden = false;
     const q = new URLSearchParams(location.search);
+    // Sent here from the LinkedIn section's login page: go back there once signed in (same-site paths only).
+    const next = q.get('next');
+    if (next && /^\/linkedin\/[\w./?=&#-]*$/.test(next)) return location.replace(next);
     if (q.get('error')) toast(q.get('error'), true);
     if (q.get('connected')) toast('Instagram account connected');
     if (q.size) history.replaceState(null, '', location.pathname + location.hash);
