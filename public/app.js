@@ -4,6 +4,20 @@
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
   const main = $('#main');
 
+  // One page, two mini apps: /dm/ (DM automation) and /scheduler/ (Instagram scheduler). Each shows only its own
+  // pages; a link to a page of the other app (e.g. "Schedule post" on the DM overview) opens that app instead.
+  const APPS = {
+    dm: { name: 'DM Automation', path: '/dm/', home: 'overview', views: ['overview', 'rules', 'flows', 'flow', 'inbox', 'insights', 'activity', 'settings'] },
+    scheduler: { name: 'Instagram Scheduler', path: '/scheduler/', home: 'posts', views: ['posts', 'insights'] },
+  };
+  const MODE = location.pathname.startsWith('/scheduler') ? 'scheduler' : 'dm';
+  const APP = APPS[MODE];
+  const OTHER = APPS[MODE === 'dm' ? 'scheduler' : 'dm'];
+  document.title = `${APP.name} · Autopilot`;
+  $('#brand-name').textContent = APP.name;
+  $('#brand').href = `#${APP.home}`;
+  for (const a of $$('#nav a[data-view]')) if (!APP.views.includes(a.dataset.view)) a.parentNode.removeChild(a);
+
   // Everything shown from Instagram (usernames, comments, messages) is untrusted: always escape.
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const when = (ms) => (ms ? new Date(ms).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '—');
@@ -55,6 +69,7 @@
     link: '<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>',
     chart: '<path d="M3 3v18h18"/><path d="M7 15v2M11 10v7M15 12v5M19 6v11"/>',
     image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3-3-9 9"/>',
+    grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
     linkedin: '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 10v7M8 7v.01M12 17v-4a2 2 0 0 1 4 0v4M12 10v7"/>',
   };
   const ic = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${P[n] || ''}</svg>`;
@@ -181,9 +196,10 @@
 
   // ---------- session ----------
 
+  // Signing in happens on the launcher ("/"), which sends you back here afterwards.
   function showLogin() {
     $('#app').hidden = true;
-    $('#login').hidden = false;
+    location.replace('/?next=' + encodeURIComponent(location.pathname + location.hash));
   }
   $('#login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -200,7 +216,7 @@
   });
   const signOut = async () => {
     await api('/logout', { method: 'POST' });
-    showLogin();
+    location.href = '/';
   };
 
   // ---------- chrome: sidebar meter, account pill, bell, avatar, banner ----------
@@ -252,6 +268,7 @@
   }
 
   function renderLimit() {
+    if (MODE !== 'dm') { $('#limit').innerHTML = ''; return; } // the hourly reply limit belongs to DM automation
     const l = chrome?.limit || { used: 0, max: 0 };
     const pct = l.max ? Math.min(100, Math.round((l.used / l.max) * 100)) : 0;
     $('#limit').innerHTML = `
@@ -264,7 +281,7 @@
   }
 
   function renderBanner() {
-    $('#banner').innerHTML = chrome && !chrome.automationEnabled
+    $('#banner').innerHTML = MODE === 'dm' && chrome && !chrome.automationEnabled
       ? `<div class="banner">${ic('pause')}<span>All automations are paused. Nobody will receive automatic replies until you resume.</span><button class="btn small" id="resume" type="button">Resume</button></div>` : '';
     const b = $('#resume');
     if (b) b.onclick = run(() => setPaused(false));
@@ -277,9 +294,11 @@
     try {
       chrome = await api('/shell');
     } catch { chromeAt = 0; return; }
-    const badge = $('#badge');
-    badge.textContent = chrome.badge > 99 ? '99+' : chrome.badge;
-    badge.hidden = !chrome.badge;
+    const badge = $('#badge'); // only the DM app has the Inbox link that carries it
+    if (badge) {
+      badge.textContent = chrome.badge > 99 ? '99+' : chrome.badge;
+      badge.hidden = !chrome.badge;
+    }
     renderTopbar();
     renderLimit();
     renderBanner();
@@ -348,8 +367,9 @@
   let refreshTimer;
   let gen = 0; // bumped on every navigation so a slow, old page can never draw over a newer one
   async function routeNow() {
-    const name = (location.hash || '#overview').slice(1).split('/')[0];
-    const view = views[name] ? name : 'overview';
+    const name = (location.hash || `#${APP.home}`).slice(1).split('/')[0];
+    if (views[name] && !APP.views.includes(name) && OTHER.views.includes(name)) return location.assign(OTHER.path + location.hash);
+    const view = views[name] && APP.views.includes(name) ? name : APP.home;
     const g = ++gen;
     currentView = view;
     $$('#nav a').forEach((a) => a.classList.toggle('active', a.dataset.view === (view === 'flow' ? 'flows' : view)));
@@ -371,7 +391,7 @@
   let lastHash = location.hash;
   window.addEventListener('hashchange', () => {
     if (window.DMA?.guard && location.hash !== lastHash && !window.DMA.guard()) {
-      history.replaceState(null, '', lastHash || '#overview');
+      history.replaceState(null, '', lastHash || `#${APP.home}`);
       return;
     }
     lastHash = location.hash;
@@ -387,9 +407,6 @@
     $('#login').hidden = true;
     $('#app').hidden = false;
     const q = new URLSearchParams(location.search);
-    // Sent here from the LinkedIn section's login page: go back there once signed in (same-site paths only).
-    const next = q.get('next');
-    if (next && /^\/linkedin\/[\w./?=&#-]*$/.test(next)) return location.replace(next);
     if (q.get('error')) toast(q.get('error'), true);
     if (q.get('connected')) toast('Instagram account connected');
     if (q.size) history.replaceState(null, '', location.pathname + location.hash);

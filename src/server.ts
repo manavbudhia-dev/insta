@@ -105,12 +105,12 @@ app.get('/auth/instagram', requireLogin, (_req, res) => {
   res.redirect(authorizeUrl(makeToken('oauth', 10 * 60_000)));
 });
 app.get('/auth/instagram/callback', async (req, res) => {
-  const fail = (msg: string) => res.redirect(`/?error=${encodeURIComponent(msg)}`);
+  const fail = (msg: string) => res.redirect(`/dm/?error=${encodeURIComponent(msg)}`);
   if (req.query.error) return fail(String(req.query.error_description ?? req.query.error));
   if (!checkToken('oauth', String(req.query.state ?? ''))) return fail('Login link expired — please try connecting again');
   try {
     await exchangeCode(String(req.query.code ?? ''));
-    res.redirect('/?connected=1');
+    res.redirect('/dm/?connected=1');
   } catch (e) {
     log('error', `Instagram connect failed: ${(e as Error).message}`);
     fail(redact((e as Error).message));
@@ -120,7 +120,10 @@ app.get('/auth/instagram/callback', async (req, res) => {
 app.use('/api', requireLogin, api);
 app.use('/api', (_req, res) => void res.status(404).json({ error: 'Not found' }));
 
-app.use(express.static(publicDir, { extensions: ['html'] }));
+// "/" is the launcher; the two Instagram mini apps share one page that switches by its path.
+app.get('/', (_req, res) => res.sendFile(path.join(publicDir, 'home.html')));
+app.get(['/dm', '/dm/', '/scheduler', '/scheduler/'], (_req, res) => res.sendFile(path.join(publicDir, 'index.html')));
+app.use(express.static(publicDir, { extensions: ['html'], index: false }));
 
 // Never leak stack traces or internals; oversized or malformed requests get a plain JSON answer.
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

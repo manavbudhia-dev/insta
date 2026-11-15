@@ -216,7 +216,7 @@ test('Unified Login OAuth: dialog URL, state check, code exchange with the Meta 
   const badCode = await fetch(`${APP}/auth/instagram/callback?code=NOPE&state=${encodeURIComponent(state)}`, { redirect: 'manual' });
   assert.match(badCode.headers.get('location')!, /error=/);
   const ok = await fetch(`${APP}/auth/instagram/callback?code=GOODCODE&state=${encodeURIComponent(state)}`, { redirect: 'manual' });
-  assert.equal(ok.headers.get('location'), '/?connected=1');
+  assert.equal(ok.headers.get('location'), '/dm/?connected=1');
   const sub = calls.filter((c) => c.path === `/${OWN_ID}/subscribed_apps`).at(-1)!;
   assert.equal(sub.auth, 'Bearer SUAT-from-oauth-1234567890');
   assert.equal((await fetch(APP + '/auth/instagram', { redirect: 'manual' })).headers.get('location'), '/', 'login required to start OAuth');

@@ -8,8 +8,16 @@ One self-hosted platform, one login, one deploy:
   LinkedIn's official Posts API, with a queue, analytics, team members and optional AI-written drafts.
   See [LinkedIn scheduler](#linkedin-scheduler).
 
-Sign in once with `ADMIN_PASSWORD` and switch between the two with **LinkedIn** in the sidebar and **Instagram** in the
-LinkedIn tab bar.
+Sign in once with `ADMIN_PASSWORD` on the **home page** (`/`). It shows one card per mini app with live numbers, a
+"Needs attention" list and the next scheduled posts on all platforms:
+
+| Mini app | Address | What's in it |
+|---|---|---|
+| Instagram DM Automation | `/dm/` | Overview, automations, flows, inbox, insights, activity, settings |
+| Instagram Scheduler | `/scheduler/` | Content calendar and insights |
+| LinkedIn Scheduler | `/linkedin/` | Schedule, queue, analytics, accounts, auto content, settings |
+
+Every mini app has **All apps** to go back home. Old links such as `/#inbox` still work and open the right mini app.
 
 ## Quick start (one command)
 

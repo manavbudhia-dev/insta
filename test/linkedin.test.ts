@@ -61,7 +61,7 @@ test('pages are served under /linkedin with their own CSP; the Instagram dashboa
     assert.match(r.headers.get('content-security-policy')!, /script-src 'self' 'unsafe-inline'/);
   }
   const home = await fetch(APP + '/');
-  assert.match(await home.text(), /href="\/linkedin\/"/);
+  assert.match(await home.text(), /src="\/home.js"/);
   assert.match(home.headers.get('content-security-policy')!, /script-src 'self';/);
   assert.equal((await call('GET', '/linkedin/api/posts')).res.headers.get('cache-control'), 'no-store');
 });
@@ -119,4 +119,20 @@ test('signing out from the LinkedIn section ends the dashboard session too', asy
   assert.equal(out.json.owner, true);
   assert.equal((await call('GET', '/api/session')).json.loggedIn, false);
   assert.equal((await call('GET', '/linkedin/api/me')).status, 401);
+});
+
+test('the launcher at / and the two Instagram mini apps at /dm/ and /scheduler/', async () => {
+  const home = await fetch(APP + '/');
+  assert.equal(home.status, 200);
+  assert.match(home.headers.get('content-security-policy')!, /script-src 'self';/);
+  for (const p of ['/dm/', '/scheduler/', '/dm', '/scheduler']) {
+    const r = await fetch(APP + p);
+    assert.equal(r.status, 200, p);
+    const html = await r.text();
+    assert.match(html, /src="\/app.js"/, p);
+    assert.match(html, /href="\/" class="nav-home"/, p);
+  }
+  // The Instagram OAuth callback returns to the DM app.
+  const cb = await fetch(APP + '/auth/instagram/callback?error=access_denied', { redirect: 'manual' });
+  assert.match(cb.headers.get('location')!, /^\/dm\/\?error=/);
 });
