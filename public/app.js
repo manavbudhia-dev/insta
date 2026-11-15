@@ -228,7 +228,7 @@
     flows: { icon: 'flow', title: () => 'Flows', sub: 'Multi-step conversations built visually: buttons, questions, conditions, delays and tags.' },
     flow: { icon: 'flow', title: () => 'Flow builder', sub: '' },
     inbox: { icon: 'chat', title: () => 'Inbox', sub: 'Conversations and comments handled by your automations.' },
-    posts: { icon: 'calendar', title: () => 'Content calendar', sub: 'Plan photos, carousels, reels and stories by month. Times are in your local timezone.' },
+    posts: { icon: 'calendar', title: () => 'Content calendar', sub: 'Instagram and LinkedIn posts by month. Times are in your local timezone.' },
     insights: { icon: 'chart', title: () => 'Insights', sub: 'How your conversations, automations and posts are performing.' },
     activity: { icon: 'activity', title: () => 'Activity', sub: 'Every reply the system queued, and what happened to it.' },
     settings: { icon: 'settings', title: () => 'Settings', sub: 'Safety limits and how comments are collected.' },

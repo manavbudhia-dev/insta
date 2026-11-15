@@ -173,6 +173,16 @@ app.get('/api/events', auth, (req, res) => addClient(req, res));
 const postSql = `select p.*, a.name as account_name, a.kind as account_kind, u.name as author_name
   from posts p left join accounts a on a.id=p.account_id left join users u on u.id=p.created_by`;
 app.get('/api/posts', auth, (_, res) => res.json(db.prepare(postSql + ' order by p.when_at desc limit 200').all()));
+// For the shared content calendar: every non-draft post whose date (publish time once published) falls in [from, to).
+app.get('/api/calendar', auth, (req, res) => {
+  const from = Number(req.query.from) || 0, to = Number(req.query.to) || Date.now() + 366 * 864e5;
+  res.json(db.prepare(postSql + ` where p.status != 'draft'
+      and (case when p.status = 'published' and p.published_at then p.published_at else p.when_at end) >= ?
+      and (case when p.status = 'published' and p.published_at then p.published_at else p.when_at end) < ?
+    order by p.when_at limit 1000`).all(from, to)
+    .map(({ id, text, when_at, published_at, status, error, urn, type, media_json, account_name, account_kind }) =>
+      ({ id, text, when_at, published_at, status, error, urn, type, media_json, account_name, account_kind })));
+});
 const DURATIONS = ['ONE_DAY', 'THREE_DAYS', 'SEVEN_DAYS', 'FOURTEEN_DAYS'];
 
 // Validates a post payload for both create and edit. Returns { error } or { f, ids }.

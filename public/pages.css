@@ -55,6 +55,11 @@
 .cal-dots { display: none; gap: 3px; justify-content: center; }
 .cal-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--st); }
 .cal-tip { margin: 12px 0 0; }
+/* platform mark on calendar chips, keys and filter buttons */
+.cal-pf { width: 8px; height: 8px; border-radius: 50%; flex: none; display: inline-block; }
+.pf-instagram { background: linear-gradient(135deg, #feda75, #fa7e1e 35%, #d62976 62%, #4f5bd5); }
+.pf-linkedin { background: #3b8beb; box-shadow: 0 0 0 1px rgba(59, 139, 235, .35); }
+.seg .cal-pf { margin-right: 2px; }
 .ag-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
 .ag-row .grow { flex: 1; min-width: 0; }
 .ag-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }

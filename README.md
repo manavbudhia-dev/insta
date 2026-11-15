@@ -14,7 +14,7 @@ Sign in once with `ADMIN_PASSWORD` on the **home page** (`/`). It shows one card
 | Mini app | Address | What's in it |
 |---|---|---|
 | Instagram DM Automation | `/dm/` | Overview, automations, flows, inbox, insights, activity, settings |
-| Instagram Scheduler | `/scheduler/` | Content calendar and insights |
+| Instagram Scheduler | `/scheduler/` | Content calendar (Instagram + LinkedIn) and insights |
 | LinkedIn Scheduler | `/linkedin/` | Schedule, queue, analytics, accounts, auto content, settings |
 
 Every mini app has **All apps** to go back home. Old links such as `/#inbox` still work and open the right mini app.
@@ -165,7 +165,10 @@ DM, story reply and story mention triggers arrive by webhook and are instant.
 
 ## Calendar and Insights
 
-**Calendar** shows each month with everything planned and published:
+**Calendar** shows each month with everything planned and published, on **Instagram and LinkedIn** together.
+Use the *All / Instagram / LinkedIn* switch to filter. LinkedIn posts can be dragged to another day just like
+Instagram ones, *Edit* opens the LinkedIn composer, and **+** on a day asks which platform to post on. The LinkedIn app
+has a **Calendar** tab that opens it filtered to LinkedIn (`/scheduler/#posts/linkedin`).
 
 - Click **+** on a day (or a day, then *Schedule on this day*) to schedule a post for it.
 - Drag a scheduled post to another day to move it; it keeps its time of day.

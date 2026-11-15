@@ -92,6 +92,12 @@ test('media upload, drafts and scheduled posts work through the mounted API', as
   assert.equal(sched.json.status, 'scheduled');
   const list = await call('GET', '/linkedin/api/posts');
   assert.deepEqual(list.json.map((p: any) => p.text).sort(), ['Draft post', 'Hello LinkedIn']);
+
+  // The shared content calendar gets scheduled posts in the asked range, never drafts.
+  const cal = await call('GET', `/linkedin/api/calendar?from=${Date.now()}&to=${Date.now() + 86400e3}`);
+  assert.deepEqual(cal.json.map((p: any) => p.text), ['Hello LinkedIn']);
+  assert.equal(cal.json[0].account_name, 'Test User');
+  assert.equal((await call('GET', `/linkedin/api/calendar?from=${Date.now() + 2 * 86400e3}&to=${Date.now() + 3 * 86400e3}`)).json.length, 0);
 });
 
 test('cross-site writes to the LinkedIn API are refused; the inbound webhook still needs its token', async () => {
