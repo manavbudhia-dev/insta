@@ -41,6 +41,8 @@ addColumn('posts', 'updated_at', 'integer');                   // last edit; dra
 addColumn('posts', 'ai', 'integer not null default 0');                // 1 = written by Auto content
 addColumn('users', 'created_at', 'integer');                  // shown as "Added on" in Accounts
 addColumn('accounts', 'notified', 'text');                   // last reminder sent, "<expires_at>:<soon|expired>"
+addColumn('accounts', 'picture', 'text');                    // LinkedIn profile photo URL (member accounts)
+addColumn('accounts', 'picture_at', 'integer');              // when the photo URL was last fetched
 
 // Organization accounts borrow the token of a member who administers the page.
 export function tokenFor(acc) {

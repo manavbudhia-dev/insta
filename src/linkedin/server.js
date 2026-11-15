@@ -8,7 +8,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import db, { MEDIA_DIR } from './db.js';
-import { seal } from './crypto.js';
+import { seal, open as unseal } from './crypto.js';
 import * as li from './linkedin.js';
 import { start, stop, isBusy, publishDue, refreshStats } from './scheduler.js';
 import { PREFIX, PUBLIC_DIR } from './paths.js';
@@ -139,9 +139,10 @@ app.get('/auth/linkedin/callback', wrap(async (req, res) => {
   const me = await li.userInfo(tok.access_token);
   const urn = `urn:li:person:${me.sub}`;
   const exp = Date.now() + (Number(tok.expires_in) > 0 ? Number(tok.expires_in) : 60 * 86400) * 1000; // LinkedIn tokens last ~60 days
-  db.prepare(`insert into accounts(name,kind,urn,token,expires_at,created_by) values(?,?,?,?,?,?)
-    on conflict(urn) do update set token=excluded.token, expires_at=excluded.expires_at, name=excluded.name`)
-    .run(me.name, 'member', urn, seal(tok.access_token), exp, req.user.id);
+  db.prepare(`insert into accounts(name,kind,urn,token,expires_at,created_by,picture,picture_at) values(?,?,?,?,?,?,?,?)
+    on conflict(urn) do update set token=excluded.token, expires_at=excluded.expires_at, name=excluded.name,
+      picture=excluded.picture, picture_at=excluded.picture_at`)
+    .run(me.name, 'member', urn, seal(tok.access_token), exp, req.user.id, me.picture || null, Date.now());
   res.redirect(`${PREFIX}/accounts.html`);
 }));
 app.post('/api/accounts/org', auth, adminOnly, (req, res) => {
@@ -154,8 +155,20 @@ app.post('/api/accounts/org', auth, adminOnly, (req, res) => {
     res.json({ ok: true });
   } catch { res.status(409).json({ error: 'That page is already added' }); }
 });
+// Profile photo URLs from LinkedIn expire, so refresh them in the background about once a week.
+const PIC_TTL = 7 * 86400e3, picBusy = new Set();
+function refreshPicture(a) {
+  if (a.kind !== 'member' || !a.token || (a.expires_at && a.expires_at < Date.now()) || picBusy.has(a.id)) return;
+  if (a.picture_at && Date.now() - a.picture_at < PIC_TTL) return;
+  picBusy.add(a.id);
+  Promise.resolve().then(() => li.userInfo(unseal(a.token)))
+    .then((me) => db.prepare('update accounts set picture=?, picture_at=? where id=?').run(me.picture || null, Date.now(), a.id))
+    .catch(() => db.prepare('update accounts set picture_at=? where id=?').run(Date.now(), a.id))
+    .finally(() => picBusy.delete(a.id));
+}
 app.get('/api/accounts', auth, (_, res) => res.json(
-  db.prepare('select id,name,kind,urn,expires_at,token_from from accounts').all().map((a) => {
+  db.prepare('select id,name,kind,urn,expires_at,token_from,picture,picture_at,token from accounts').all().map(({ token, picture_at, ...a }) => {
+    refreshPicture({ ...a, token, picture_at });
     const src = a.token_from ? db.prepare('select expires_at from accounts where id=?').get(a.token_from) : a;
     return { ...a, expired: !!src && !!src.expires_at && src.expires_at < Date.now() };
   })));
