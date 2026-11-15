@@ -70,6 +70,30 @@
     chart: '<path d="M3 3v18h18"/><path d="M7 15v2M11 10v7M15 12v5M19 6v11"/>',
     image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3-3-9 9"/>',
     grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+    tag: '<path d="M12.6 2.6A2 2 0 0 0 11.2 2H4a2 2 0 0 0-2 2v7.2a2 2 0 0 0 .6 1.4l8.7 8.7a2.4 2.4 0 0 0 3.4 0l6.6-6.6a2.4 2.4 0 0 0 0-3.4z"/><circle cx="7.5" cy="7.5" r="1.2"/>',
+    filter: '<path d="M22 3H2l8 9.5V19l4 2v-8.5z"/>',
+    info: '<circle cx="12" cy="12" r="9.5"/><path d="M12 16.5v-5M12 8h.01"/>',
+    msgdots: '<path d="M21 12a8 8 0 0 1-8 8H4l2.2-2.6A8 8 0 1 1 21 12z"/><path d="M8.5 12h.01M12.5 12h.01M16.5 12h.01" stroke-width="2.6"/>',
+    braces: '<path d="M8 4H7a2 2 0 0 0-2 2v4a2 2 0 0 1-2 2 2 2 0 0 1 2 2v4a2 2 0 0 0 2 2h1M16 4h1a2 2 0 0 1 2 2v4a2 2 0 0 0 2 2 2 2 0 0 0-2 2v4a2 2 0 0 1-2 2h-1"/><path d="M4 2.5v3M2.5 4h3" stroke-width="1.6"/>',
+    eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    user: '<circle cx="12" cy="8" r="4" fill="currentColor" stroke="none"/><path d="M4 21a8 8 0 0 1 16 0z" fill="currentColor" stroke="none"/>',
+    grip: '<g fill="currentColor" stroke="none"><circle cx="9" cy="5" r="1.6"/><circle cx="15" cy="5" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="19" r="1.6"/><circle cx="15" cy="19" r="1.6"/></g>',
+    ext: '<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
+    chevup: '<path d="m18 15-6-6-6 6"/>',
+    clock: '<circle cx="12" cy="12" r="9.5"/><path d="M12 7v5l3 2"/>',
+    layers: '<path d="m12 2 10 5-10 5L2 7z"/><path d="m2 12 10 5 10-5M2 17l10 5 10-5"/>',
+    reel: '<rect x="3" y="3" width="18" height="18" rx="4"/><path d="M3 8h18M8 3l3 5M14 3l3 5"/><path d="M10 11.5v5l4.5-2.5z" fill="currentColor"/>',
+    story: '<path d="M12 2.5a9.5 9.5 0 0 1 9.5 9.5M21.5 12A9.5 9.5 0 0 1 12 21.5" /><path d="M12 21.5a9.5 9.5 0 0 1-9.5-9.5M2.5 12A9.5 9.5 0 0 1 12 2.5" stroke-dasharray="2.6 2.6"/><path d="M12 8v8M8 12h8"/>',
+    cloud: '<path d="M17.5 19a4.5 4.5 0 1 0-1.4-8.8A7 7 0 1 0 4 15.3"/><path d="M12 12v9M8.5 15.5 12 12l3.5 3.5"/>',
+    upload: '<path d="M12 15V3M7 8l5-5 5 5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>',
+    sparkle: '<path d="M11 3.5 12.9 9l5.6 2-5.6 2L11 18.5 9.1 13l-5.6-2 5.6-2z"/><path d="M19 3v4M17 5h4" stroke-width="1.6"/>',
+    hash: '<path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/>',
+    smile: '<circle cx="12" cy="12" r="9.5"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9.5h.01M15 9.5h.01" stroke-width="2"/>',
+    globe: '<circle cx="12" cy="12" r="9.5"/><path d="M2.5 12h19M12 2.5a14.5 14.5 0 0 1 0 19 14.5 14.5 0 0 1 0-19"/>',
+    dots: '<g fill="currentColor" stroke="none"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></g>',
+    heart: '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21.2l8.8-8.8a5.5 5.5 0 0 0 0-7.8z"/>',
+    bubble: '<path d="M20.7 16.4A9.5 9.5 0 1 0 17 20.3L21.5 21.5z"/>',
+    bookmark: '<path d="M19 21 12 16l-7 5V4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1z"/>',
     linkedin: '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 10v7M8 7v.01M12 17v-4a2 2 0 0 1 4 0v4M12 10v7"/>',
   };
   const ic = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${P[n] || ''}</svg>`;
@@ -149,9 +173,10 @@
   const visible = () => !document.hidden;
 
   const modalHead = (title) => `<div class="modal-head"><h2>${title}</h2><button type="button" class="x" id="m-close" aria-label="Close">${ic('x')}</button></div>`;
-  function openModal(html) {
+  function openModal(html, cls = '') {
     closePop();
     const box = $('#modal-box');
+    box.className = 'modal-box' + (cls ? ' ' + cls : '');
     box.innerHTML = html;
     $('#modal').hidden = false;
     const x = $('#m-close', box);
@@ -161,7 +186,15 @@
   function closeModal() {
     $('#modal').hidden = true;
     $('#modal-box').innerHTML = '';
+    $('#modal-box').className = 'modal-box';
   }
+  // Type text at the caret of a textarea/input, as if the user had typed it.
+  const insertAt = (el, text) => {
+    const a = el.selectionStart ?? el.value.length, b = el.selectionEnd ?? a;
+    el.setRangeText(text, a, b, 'end');
+    el.focus();
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  };
   $('#modal').addEventListener('mousedown', (e) => e.target.id === 'modal' && closeModal());
 
   // Small floating menu anchored under a button.
@@ -754,38 +787,182 @@
     })));
   };
 
+  // Tag-style input: Enter or a comma turns the typed text into a chip; Backspace on an empty field removes the last one.
+  function chipInput(el, list, { placeholder, maxLen = 0, limit = 50, onChange = () => {} }) {
+    const add = (raw) => {
+      for (const s of String(raw).split(',').map((x) => x.trim()).filter(Boolean)) {
+        const v = maxLen ? [...s].slice(0, maxLen).join('') : s;
+        if (list.length < limit && !list.some((x) => x.toLowerCase() === v.toLowerCase())) list.push(v);
+      }
+    };
+    let drawing = false;
+    const draw = (focus) => {
+      drawing = true;
+      el.innerHTML = list.map((c, i) => `<span class="nm-chip">${esc(c)}<button type="button" data-x="${i}" aria-label="Remove ${esc(c)}">${ic('x')}</button></span>`).join('')
+        + `<input type="text" placeholder="${esc(list.length >= limit ? '' : placeholder)}" ${maxLen ? `maxlength="${maxLen}"` : ''} aria-label="${esc(placeholder)}">`;
+      drawing = false;
+      const inp = $('input', el);
+      inp.onkeydown = (e) => {
+        if ((e.key === 'Enter' || e.key === ',') && inp.value.trim()) { e.preventDefault(); add(inp.value); draw(true); onChange(); }
+        else if (e.key === 'Enter') e.preventDefault();
+        else if (e.key === 'Backspace' && !inp.value && list.length) { list.pop(); draw(true); onChange(); }
+      };
+      inp.oninput = () => {
+        if (!inp.value.includes(',')) return;
+        const parts = inp.value.split(',');
+        add(parts.slice(0, -1).join(','));
+        draw(true);
+        $('input', el).value = parts.at(-1).trimStart();
+        onChange();
+      };
+      inp.onblur = () => { if (!drawing && inp.value.trim()) { add(inp.value); draw(); onChange(); } };
+      $$('[data-x]', el).forEach((b) => (b.onclick = () => { list.splice(Number(b.dataset.x), 1); draw(true); onChange(); }));
+      if (focus) $('input', el).focus();
+    };
+    el.onclick = (e) => { if (e.target === el) $('input', el).focus(); };
+    draw();
+    return { flush: () => { const inp = $('input', el); if (inp.value.trim()) { add(inp.value); draw(); onChange(); } } };
+  }
+
+  const PRIORITIES = [[-10, 'Low'], [0, 'Normal'], [10, 'High'], [50, 'Urgent']];
+  const BTN_SAMPLES = [['View Price List', 'https://yourwebsite.com/price'], ['Book a Call', 'https://yourwebsite.com/book'], ['Learn More', 'https://yourwebsite.com/about']];
+  const FLAG = '<svg class="i nm-flag" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4"/><path d="M5 4h13l-3 4.5 3 4.5H5z" fill="currentColor"/></svg>';
+
   function ruleForm(rule, media) {
     const r = rule ?? { name: '', trigger_type: 'dm', match_mode: 'contains', keywords: [], reply_text: '', buttons: [], quick_replies: [], comment_replies: [], cooldown_minutes: 0, priority: 0, enabled: 1, media_id: null };
-    const btn = (i) => r.buttons[i] ?? { title: '', url: '' };
+    const kws = [...r.keywords];
+    const quick = [...r.quick_replies];
+    const btns = [0, 1, 2].map((i) => ({ title: r.buttons[i]?.title ?? '', url: r.buttons[i]?.url ?? '' }));
+    const prios = PRIORITIES.some(([v]) => v === r.priority) ? PRIORITIES : [...PRIORITIES, [r.priority, `Custom (${r.priority})`]].sort((a, b) => a[0] - b[0]);
+    const info = (t) => `<span class="nm-info" tabindex="0" title="${esc(t)}" aria-label="${esc(t)}">${ic('info')}</span>`;
     const box = openModal(`
-      ${modalHead(rule ? 'Edit automation' : 'New automation')}
-      <form class="form" id="rule-form">
-        <label>Name<input name="name" value="${esc(r.name)}" placeholder="e.g. Send price list" required></label>
-        <div class="cols">
-          <label>When this happens<select name="trigger_type">${Object.entries(TRIGGERS).map(([k, v]) => `<option value="${k}" ${r.trigger_type === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
-          <label data-for="match">And the text<select name="match_mode">
-            <option value="contains" ${r.match_mode === 'contains' ? 'selected' : ''}>contains a keyword</option>
-            <option value="exact" ${r.match_mode === 'exact' ? 'selected' : ''}>is exactly a keyword</option>
-            <option value="any" ${r.match_mode === 'any' ? 'selected' : ''}>is anything</option>
-          </select></label>
-        </div>
-        <label data-for="keywords">Keywords <span class="hint">Separate with commas. Not case-sensitive.</span><input name="keywords" value="${esc(r.keywords.join(', '))}" placeholder="price, link, info"></label>
-        <label data-for="media">Limit to one post <span class="hint">Recent posts appear here once the account is connected.</span><select name="media_id"><option value="">Any post</option>${media.map((m) => `<option value="${esc(m.id)}" ${r.media_id === m.id ? 'selected' : ''}>${esc(mediaLabel(m))}</option>`).join('')}</select></label>
-        <label>Send this DM <span class="hint">Use {{first_name}} or {{username}}. Up to 1000 characters (640 with buttons).</span><textarea name="reply_text" placeholder="Hey {{first_name}}! Here is the link you asked for…">${esc(r.reply_text)}</textarea></label>
-        <label>Link buttons <span class="hint">Optional, up to 3. Title (max 20 characters) and an https:// link.</span>
-          ${[0, 1, 2].map((i) => `<div class="cols"><input name="bt${i}" value="${esc(btn(i).title)}" placeholder="Button title" maxlength="20"><input name="bu${i}" value="${esc(btn(i).url)}" placeholder="https://…"></div>`).join('')}
-        </label>
-        <label data-for="quick">Quick replies <span class="hint">Optional tappable answers, comma separated (max 20 characters each). Not used when link buttons are set.</span><input name="quick_replies" value="${esc(r.quick_replies.join(', '))}" placeholder="Pricing, Talk to a human"></label>
-        <label data-for="comment">Public replies to the comment <span class="hint">Optional. One per line; a random one is used each time so replies do not look repetitive.</span><textarea name="comment_replies" placeholder="Sent you a DM! 📩&#10;Check your inbox ✅">${esc(r.comment_replies.join('\n'))}</textarea></label>
-        <div class="cols">
-          <label>Cooldown (minutes) <span class="hint">Do not fire again for the same person within this time.</span><input name="cooldown_minutes" type="number" min="0" value="${r.cooldown_minutes}"></label>
-          <label>Priority <span class="hint">Higher numbers are checked first.</span><input name="priority" type="number" min="-100" max="100" value="${r.priority}"></label>
-        </div>
-        <label class="check"><input type="checkbox" class="switch" name="enabled" ${r.enabled ? 'checked' : ''}> Turned on</label>
-        <div class="row" style="justify-content:flex-end"><button type="button" class="btn" id="cancel">Cancel</button><button class="btn primary">Save</button></div>
-      </form>`);
+      <div class="nm-head">
+        <div class="nm-badge">${ic('zap')}</div>
+        <div class="nm-titles"><h2>${rule ? 'Edit Automation' : 'New Automation'}</h2><p>Set a rule to automatically reply to DMs or comments.</p></div>
+        <button type="button" class="nm-x" id="m-close" aria-label="Close">${ic('x')}</button>
+      </div>
+      <div class="nm-steps">
+        <button type="button" class="nm-step on" data-step="0"><b>1</b><span>Trigger &amp; Rule</span></button><i></i>
+        <button type="button" class="nm-step" data-step="1"><b>2</b><span>Reply &amp; Actions</span></button><i></i>
+        <button type="button" class="nm-step" data-step="2"><b>3</b><span>Settings</span></button>
+      </div>
+      <form class="nm-form" id="rule-form" novalidate>
+        <section data-sec="0">
+          <div class="nm-field"><label class="nm-label" for="r-name">Automation Name</label>
+            <div class="nm-in">${ic('tag')}<input id="r-name" name="name" value="${esc(r.name)}" placeholder="e.g. Send price list" maxlength="80" required></div></div>
+          <div class="nm-cols">
+            <div class="nm-field"><label class="nm-label" for="r-trig">When this happens</label>
+              <div class="nm-in nm-sel">${ic('send')}<select id="r-trig" name="trigger_type">${Object.entries(TRIGGERS).map(([k, v]) => `<option value="${k}" ${r.trigger_type === k ? 'selected' : ''}>${v}</option>`).join('')}</select>${ic('down')}</div></div>
+            <div class="nm-field" data-for="match"><label class="nm-label" for="r-match">And the text</label>
+              <div class="nm-in nm-sel">${ic('filter')}<select id="r-match" name="match_mode">
+                <option value="contains" ${r.match_mode === 'contains' ? 'selected' : ''}>Contains a keyword</option>
+                <option value="exact" ${r.match_mode === 'exact' ? 'selected' : ''}>Is exactly a keyword</option>
+                <option value="any" ${r.match_mode === 'any' ? 'selected' : ''}>Is anything</option>
+              </select>${ic('down')}</div></div>
+          </div>
+          <div class="nm-field" data-for="keywords"><div class="nm-label">Keywords ${info('The automation fires when a message matches one of these words.')}</div>
+            <p class="nm-sub">Separate with commas. Not case-sensitive.</p><div class="nm-chips" id="kw"></div></div>
+          <div class="nm-field" data-for="media"><label class="nm-label" for="r-media">Limit to one post</label><p class="nm-sub">Recent posts appear here once the account is connected.</p>
+            <div class="nm-in nm-sel">${ic('image')}<select id="r-media" name="media_id"><option value="">Any post</option>${media.map((m) => `<option value="${esc(m.id)}" ${r.media_id === m.id ? 'selected' : ''}>${esc(mediaLabel(m))}</option>`).join('')}</select>${ic('down')}</div></div>
+        </section>
+        <section data-sec="1">
+          <div class="nm-reply">
+            <div class="nm-reply-l">
+              <div class="nm-sh"><span class="nm-sico">${ic('msgdots')}</span><div><h3 id="rt-l">Auto Reply Message</h3><p>Use {{first_name}} or {{username}}. Up to 1000 characters.</p></div></div>
+              <div class="nm-ta"><textarea name="reply_text" aria-labelledby="rt-l" maxlength="1000" placeholder="Hey {{first_name}}! Here is the link you asked for…">${esc(r.reply_text)}</textarea>
+                <button type="button" class="nm-var" id="var" data-pop aria-label="Insert a variable" title="Insert a variable">${ic('braces')}</button><small id="cnt"></small></div>
+            </div>
+            <aside class="nm-prev" aria-label="Message preview">
+              <div class="nm-prev-h">${ic('eye')}Message Preview</div>
+              <div class="nm-prev-b"><span class="nm-pav">${ic('user')}</span><div class="nm-bwrap"><div class="nm-bub" id="bub"></div><div class="nm-qrs" id="qrs"></div></div></div>
+            </aside>
+          </div>
+          <div class="nm-field">
+            <div class="nm-sh"><span class="nm-sico">${ic('link')}</span><div><h3>Link Buttons <em>(Optional)</em></h3><p>Add up to 3 buttons with a title (max 20 characters) and a link.</p></div></div>
+            <div class="nm-btns" id="btns"></div>
+          </div>
+          <div class="nm-field" data-for="quick">
+            <div class="nm-sh"><span class="nm-sico">${ic('zap')}</span><div><h3>Quick Replies <em>(Optional)</em> ${info('Tappable answers shown under the reply. Not used when link buttons are set.')}</h3><p>Add tappable reply options (max 20 characters each), separated by commas.</p></div></div>
+            <div class="nm-chips" id="qr"></div>
+          </div>
+          <div class="nm-field" data-for="comment">
+            <div class="nm-sh"><span class="nm-sico">${ic('reply')}</span><div><h3 id="cr-l">Public Comment Replies <em>(Optional)</em></h3><p>One per line. A random one is used each time so replies don't look repetitive.</p></div></div>
+            <div class="nm-ta sm"><textarea name="comment_replies" aria-labelledby="cr-l" placeholder="Sent you a DM! 📩&#10;Check your inbox ✅">${esc(r.comment_replies.join('\n'))}</textarea></div>
+          </div>
+        </section>
+        <section data-sec="2" class="nm-set">
+          <div class="nm-field"><label class="nm-label" for="r-cd">${ic('clock')}Cooldown (minutes)</label>
+            <div class="nm-in nm-num"><input id="r-cd" name="cooldown_minutes" type="number" min="0" max="525600" value="${r.cooldown_minutes}" title="Don't fire again for the same person within this time">
+              <span class="nm-spin"><button type="button" data-spin="1" aria-label="Increase">${ic('chevup')}</button><button type="button" data-spin="-1" aria-label="Decrease">${ic('down')}</button></span></div></div>
+          <div class="nm-vr"></div>
+          <div class="nm-field"><label class="nm-label" for="r-prio">${ic('layers')}Priority ${info('Higher priority automations are checked first. The first match wins.')}</label>
+            <div class="nm-in nm-sel">${FLAG}<select id="r-prio" name="priority">${prios.map(([v, l]) => `<option value="${v}" ${v === r.priority ? 'selected' : ''}>${l}</option>`).join('')}</select>${ic('down')}</div></div>
+        </section>
+        <div class="nm-foot"><button type="button" class="nm-btn" id="cancel">Cancel</button><button class="nm-btn primary" id="save">${ic('zap')}${rule ? 'Save Automation' : 'Create Automation'}</button></div>
+      </form>`, 'nm nm-auto');
 
     const f = $('#rule-form', box);
+    const sampleName = firstName() === 'there' ? 'Manav' : firstName();
+    const fill = (s) => s.replace(/\{\{\s*first_name\s*\}\}/g, sampleName).replace(/\{\{\s*username\s*\}\}/g, '@' + (chrome?.account?.username || 'username'));
+    const preview = () => {
+      const t = f.trigger_type.value;
+      const text = f.reply_text.value.trim();
+      const set = btns.filter((b) => b.title.trim());
+      const showSample = !text && !set.length;
+      const list = showSample ? [{ title: BTN_SAMPLES[0][0] }] : set;
+      $('#cnt', box).textContent = `${[...f.reply_text.value].length} / 1000`;
+      $('#bub', box).className = 'nm-bub' + (showSample ? ' sample' : '');
+      $('#bub', box).innerHTML = `<p>${esc(fill(text || f.reply_text.placeholder))}</p>${list.map((b) => `<span class="nm-pbtn">${ic('link')}<span>${esc(b.title)}</span>${ic('ext')}</span>`).join('')}`;
+      $('#qrs', box).innerHTML = !set.length && t !== 'comment' ? quick.map((q) => `<span>${esc(q)}</span>`).join('') : '';
+    };
+    const kwIn = chipInput($('#kw', box), kws, { placeholder: 'Add keyword…', limit: 50 });
+    const qrIn = chipInput($('#qr', box), quick, { placeholder: 'Add quick reply…', maxLen: 20, limit: 13, onChange: preview });
+
+    let from = -1;
+    const drawBtns = () => {
+      $('#btns', box).innerHTML = btns.map((b, i) => `
+        <div class="nm-brow" data-i="${i}">
+          <span class="nm-grip" draggable="true" title="Drag to reorder" aria-hidden="true">${ic('grip')}</span>
+          <div class="nm-in nm-bt"><input data-k="title" data-i="${i}" value="${esc(b.title)}" maxlength="20" placeholder="${BTN_SAMPLES[i][0]}" aria-label="Button ${i + 1} title"></div>
+          <div class="nm-in nm-url">${ic('link')}<input data-k="url" data-i="${i}" value="${esc(b.url)}" inputmode="url" placeholder="${BTN_SAMPLES[i][1]}" aria-label="Button ${i + 1} link"></div>
+          <button type="button" class="nm-del" data-del="${i}" aria-label="Remove button ${i + 1}">${ic('trash')}</button>
+        </div>`).join('');
+      $$('#btns input', box).forEach((inp) => (inp.oninput = () => { btns[inp.dataset.i][inp.dataset.k] = inp.value; preview(); }));
+      $$('[data-del]', box).forEach((b) => (b.onclick = () => { btns.splice(Number(b.dataset.del), 1); btns.push({ title: '', url: '' }); drawBtns(); preview(); }));
+      $$('.nm-grip', box).forEach((g) => (g.ondragstart = (e) => { from = Number(g.closest('.nm-brow').dataset.i); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(from)); g.closest('.nm-brow').classList.add('drag'); }));
+      $$('.nm-brow', box).forEach((row) => {
+        row.ondragover = (e) => { if (from < 0) return; e.preventDefault(); row.classList.add('over'); };
+        row.ondragleave = () => row.classList.remove('over');
+        row.ondragend = () => { from = -1; $$('.nm-brow', box).forEach((x) => x.classList.remove('drag', 'over')); };
+        row.ondrop = (e) => {
+          e.preventDefault();
+          const to = Number(row.dataset.i);
+          if (from >= 0 && from !== to) { btns.splice(to, 0, btns.splice(from, 1)[0]); drawBtns(); preview(); }
+          from = -1;
+        };
+      });
+    };
+    drawBtns();
+
+    // The stepper follows whichever section you're working in; clicking a step jumps to it.
+    const setStep = (n) => $$('.nm-step', box).forEach((s) => s.classList.toggle('on', Number(s.dataset.step) === n));
+    f.addEventListener('focusin', (e) => { const s = e.target.closest('[data-sec]'); if (s) setStep(Number(s.dataset.sec)); });
+    $$('.nm-step', box).forEach((s) => (s.onclick = () => {
+      const sec = $(`[data-sec="${s.dataset.step}"]`, box);
+      setStep(Number(s.dataset.step));
+      sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      $('input:not([type=hidden]), select, textarea', sec)?.focus({ preventScroll: true });
+    }));
+
+    $('#var', box).onclick = (e) => popover(e.currentTarget, [
+      { label: 'First name  {{first_name}}', onClick: () => insertAt(f.reply_text, '{{first_name}}') },
+      { label: 'Username  {{username}}', onClick: () => insertAt(f.reply_text, '{{username}}') },
+    ]);
+    $$('[data-spin]', box).forEach((b) => (b.onclick = () => {
+      const v = Math.max(0, Math.min(525600, (Number(f.cooldown_minutes.value) || 0) + Number(b.dataset.spin) * 5));
+      f.cooldown_minutes.value = v;
+    }));
+
     const sync = () => {
       const t = f.trigger_type.value;
       const fixedAny = t === 'welcome' || t === 'story_mention';
@@ -794,26 +971,31 @@
       $('[data-for=media]', box).hidden = t !== 'comment';
       $('[data-for=comment]', box).hidden = t !== 'comment';
       $('[data-for=quick]', box).hidden = t === 'comment';
+      preview();
     };
     f.trigger_type.onchange = f.match_mode.onchange = sync;
+    f.reply_text.oninput = preview;
     sync();
     $('#cancel', box).onclick = closeModal;
     f.onsubmit = run(async (e) => {
       e.preventDefault();
+      kwIn.flush();
+      qrIn.flush();
+      if (!f.name.value.trim()) { f.name.focus(); throw new Error('Give the automation a name'); }
       const body = {
         name: f.name.value, trigger_type: f.trigger_type.value, match_mode: f.match_mode.value,
-        keywords: f.keywords.value.split(',').map((s) => s.trim()).filter(Boolean),
-        media_id: f.media_id.value || null, reply_text: f.reply_text.value,
-        buttons: [0, 1, 2].map((i) => ({ title: f[`bt${i}`].value, url: f[`bu${i}`].value })),
-        quick_replies: f.quick_replies.value.split(',').map((s) => s.trim()).filter(Boolean),
+        keywords: kws, media_id: f.media_id.value || null, reply_text: f.reply_text.value,
+        buttons: btns.map((b) => ({ title: b.title, url: b.url })), quick_replies: quick,
         comment_replies: lines(f.comment_replies.value),
-        cooldown_minutes: f.cooldown_minutes.value, priority: f.priority.value, enabled: f.enabled.checked,
+        cooldown_minutes: f.cooldown_minutes.value, priority: f.priority.value, enabled: rule ? !!rule.enabled : true,
       };
-      await api(rule ? `/rules/${rule.id}` : '/rules', { method: rule ? 'PUT' : 'POST', body });
+      $('#save', box).disabled = true;
+      try { await api(rule ? `/rules/${rule.id}` : '/rules', { method: rule ? 'PUT' : 'POST', body }); } finally { $('#save', box).disabled = false; }
       closeModal();
-      toast('Automation saved');
+      toast(rule ? 'Automation saved' : 'Automation created');
       route();
     });
+    setTimeout(() => f.name.focus(), 30);
   }
 
   // ---------- inbox ----------
@@ -904,60 +1086,215 @@
 
   const thumb = (m) => `<span class="thumb">${m.kind === 'video' ? `<video src="${esc(m.url)}" muted preload="metadata"></video>` : `<img src="${esc(m.url)}" alt="" loading="lazy">`}</span>`;
 
+  // Time zones: wall-clock date/time in a chosen zone <-> a UTC timestamp.
+  const zoneParts = (ms, tz) => {
+    const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+      .formatToParts(ms).map((x) => [x.type, x.value]));
+    return { date: `${p.year}-${p.month}-${p.day}`, time: `${p.hour === '24' ? '00' : p.hour}:${p.minute}` };
+  };
+  const zoneOffset = (ms, tz) => { const { date, time } = zoneParts(ms, tz); return Date.parse(`${date}T${time}:00Z`) - Math.floor(ms / 60000) * 60000; };
+  const fromZone = (date, time, tz) => { const g = Date.parse(`${date}T${time}:00Z`); return g - zoneOffset(g - zoneOffset(g, tz), tz); };
+  const zoneLabel = (tz, ms = Date.now()) => {
+    const name = (k) => new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: k }).formatToParts(ms).find((x) => x.type === 'timeZoneName')?.value || '';
+    let off = name('longOffset'); if (off === 'GMT') off = 'GMT+00:00';
+    return { off, text: `(${off}) ${name('long')}`, min: zoneOffset(ms, tz) / 60000 };
+  };
+  let zoneList = null;
+  const zones = () => {
+    if (zoneList) return zoneList;
+    const all = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : ['UTC'];
+    const here = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (!all.includes(here)) all.push(here);
+    zoneList = all.map((tz) => ({ tz, ...zoneLabel(tz) })).sort((a, b) => a.min - b.min || a.tz.localeCompare(b.tz));
+    return zoneList;
+  };
+  const fmtDate = (d) => new Date(`${d}T12:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const fmtTime = (t) => { const [h, m] = t.split(':').map(Number); return `${String(h % 12 || 12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`; };
+
+  const POST_TABS = [['IMAGE', 'image', 'Photo'], ['CAROUSEL', 'layers', 'Carousel'], ['REELS', 'reel', 'Reel'], ['STORIES', 'story', 'Story']];
+  const DROP = {
+    IMAGE: { accept: 'image/png,image/jpeg,image/webp,image/heic,image/heif', title: 'Drag & drop an image here', note: 'Supports PNG, JPG, WebP (max 10 MB)', multi: false },
+    CAROUSEL: { accept: 'image/png,image/jpeg,image/webp,image/heic,image/heif,video/mp4,video/quicktime', title: 'Drag & drop 2–20 images or videos', note: 'Supports PNG, JPG, WebP, MP4, MOV', multi: true },
+    REELS: { accept: 'video/mp4,video/quicktime', title: 'Drag & drop a video here', note: 'Supports MP4, MOV (vertical 9:16 works best)', multi: false },
+    STORIES: { accept: 'image/png,image/jpeg,image/webp,video/mp4,video/quicktime', title: 'Drag & drop an image or video', note: 'Supports PNG, JPG, WebP, MP4, MOV', multi: false },
+  };
+  const CAPTION_STARTERS = ['New drop is live! ✨ Tap the link in bio to shop.', 'Behind the scenes of what we have been working on 👀', 'Save this for later 📌', 'Which one is your favourite? Tell us in the comments 👇', 'Comment "INFO" and we will DM you the details 📩'];
+  const EMOJIS = '😀 😂 😍 🥰 😎 🤩 🥳 😇 🙌 👏 👍 🙏 💪 🔥 ✨ 🌟 💯 ❤️ 💜 💙 🧡 💚 🎉 🎁 📸 🎥 📍 📌 🛍️ 💡 ✅ 👉 👇 📩 🚀 🌸 🌈 ☀️ 🌙 ☕'.split(' ');
+  const SCENE = `<svg class="sp-scene" viewBox="0 0 400 350" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs>
+    <linearGradient id="sp-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5b4fd6"/><stop offset=".45" stop-color="#a768d8"/><stop offset=".72" stop-color="#ef8fc0"/><stop offset="1" stop-color="#f7b6c8"/></linearGradient>
+    <radialGradient id="sp-glow" cx=".5" cy=".62" r=".5"><stop offset="0" stop-color="#ffd3df" stop-opacity=".9"/><stop offset="1" stop-color="#ffd3df" stop-opacity="0"/></radialGradient>
+    <linearGradient id="sp-m1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8d7fe6"/><stop offset="1" stop-color="#5b4fc4"/></linearGradient>
+    <linearGradient id="sp-m2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5a4cc0"/><stop offset="1" stop-color="#3a3192"/></linearGradient>
+    <linearGradient id="sp-m3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f2a78"/><stop offset="1" stop-color="#1c1a4c"/></linearGradient></defs>
+    <rect width="400" height="350" fill="url(#sp-sky)"/><rect width="400" height="350" fill="url(#sp-glow)"/>
+    <path d="M-10 92c40-10 70 2 110-6s80-16 130-6M200 60c30-6 60 4 100-2s60-12 110-4M-10 140c60-8 90 4 150-2" stroke="#f5b5d6" stroke-opacity=".45" stroke-width="7" fill="none" stroke-linecap="round"/>
+    <path d="M0 210l60-38 40 18 70-62 52 40 38-28 64 48 40-20 36 22v160H0z" fill="url(#sp-m1)"/>
+    <path d="M0 238l48-22 52 26 64-44 54 36 50-30 58 38 74-30v188H0z" fill="url(#sp-m2)"/>
+    <path d="M0 276c40-22 86-28 128-16s70-26 120-18 80 22 152 0v108H0z" fill="url(#sp-m3)"/>
+    <path d="M0 304c50-12 110-10 170 0s140 6 230-8v54H0z" fill="#151436"/></svg>`;
+
   function postForm(post, defaults = {}) {
     let media = post ? [...post.media] : [];
+    let type = post?.type && DROP[post.type] ? post.type : 'IMAGE';
+    let tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    let mode = 'later';
     const at = post && post.scheduled_at > Date.now() ? post.scheduled_at : defaults.at ?? Date.now() + 3600000;
+    const start = zoneParts(at, tz);
+    const acct = chrome?.account;
+    const user = acct?.username || 'your_account';
     const box = openModal(`
-      ${modalHead(post ? 'Edit post' : 'Schedule a post')}
-      <form class="form" id="post-form">
-        <div class="cols">
-          <label>Type<select name="type">${Object.entries(POST_TYPES).map(([k, v]) => `<option value="${k}" ${post?.type === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
-          <label>Publish at<input type="datetime-local" name="at" value="${toLocalInput(at)}" required></label>
+      <div class="nm-head">
+        <div class="nm-badge">${ic('calendar')}</div>
+        <div class="nm-titles"><h2>${post ? 'Edit Post' : 'Schedule a Post'}</h2><p>Create and schedule a photo, carousel, reel, or story for Instagram.</p></div>
+        <button type="button" class="nm-x" id="m-close" aria-label="Close">${ic('x')}</button>
+      </div>
+      <div class="sp-tabs" role="radiogroup" aria-label="Post type">${POST_TABS.map(([k, icon, label]) => `<button type="button" role="radio" class="sp-tab" data-type="${k}">${ic(icon)}<span>${label}</span></button>`).join('')}</div>
+      <form class="sp-grid" id="post-form" novalidate>
+        <div class="sp-left">
+          <div class="nm-field"><div class="nm-label">Media</div>
+            <div class="sp-drop" id="drop" tabindex="0" role="button" aria-label="Upload media">
+              <span class="sp-cloud">${ic('cloud')}</span><b id="d-title"></b><span>or click to browse</span>
+              <span class="nm-btn sm">${ic('upload')}Choose File</span><small id="d-note"></small>
+              <input type="file" id="files" hidden>
+            </div>
+            <div class="sp-thumbs" id="thumbs"></div>
+          </div>
+          <div class="nm-field" data-for="caption"><div class="nm-label sp-row"><label for="p-cap">Caption</label><span class="sp-count" id="cc"></span></div>
+            <div class="nm-ta sp-cap"><textarea id="p-cap" name="caption" maxlength="2200" placeholder="Write a caption...">${esc(post?.caption ?? '')}</textarea>
+              <div class="sp-tools"><button type="button" id="t-ai" data-pop title="Caption ideas" aria-label="Caption ideas">${ic('sparkle')}</button><button type="button" id="t-hash" title="Add a hashtag" aria-label="Add a hashtag">${ic('hash')}</button><button type="button" id="t-emoji" data-pop title="Add an emoji" aria-label="Add an emoji">${ic('smile')}</button></div></div>
+          </div>
+          <div class="nm-field"><div class="nm-label">${ic('calendar')}Publish at</div>
+            <div class="sp-radios" role="radiogroup">
+              <label class="sp-radio"><input type="radio" name="mode" value="later" checked><i></i>Schedule for later</label>
+              <label class="sp-radio"><input type="radio" name="mode" value="now"><i></i>Publish now</label>
+            </div>
+            <div class="sp-when" id="when">
+              <label class="nm-in sp-pick">${ic('calendar')}<span id="d-txt"></span>${ic('down')}<input type="date" name="date" value="${start.date}" aria-label="Date"></label>
+              <label class="nm-in sp-pick">${ic('clock')}<span id="t-txt"></span>${ic('down')}<input type="time" name="time" value="${start.time}" aria-label="Time"></label>
+            </div>
+            <label class="sp-tz">${ic('globe')}<b>Timezone</b><span id="tz-txt"></span>${ic('down')}<select name="tz" aria-label="Timezone"></select></label>
+          </div>
         </div>
-        <label>Media <span class="hint" id="media-hint"></span><input type="file" id="files" multiple accept="image/*,video/mp4,video/quicktime"></label>
-        <div class="thumbs" id="thumbs"></div>
-        <label data-for="caption">Caption <span class="hint">Up to 2200 characters. Stories have no caption.</span><textarea name="caption" rows="5">${esc(post?.caption ?? '')}</textarea></label>
-        <div class="row" style="justify-content:flex-end"><button type="button" class="btn" id="cancel">Cancel</button><button class="btn primary" id="save">Save</button></div>
-      </form>`);
+        <aside class="sp-prev" aria-label="Post preview">
+          <div class="sp-prev-h">${IG('sp-ig')}<h3>Post Preview</h3></div>
+          <div class="sp-card" id="pv">
+            <div class="sp-top"><span class="sp-av">${acct?.picture ? `<img src="${esc(acct.picture)}" alt="">` : ''}</span><b>${esc(user)}</b>${ic('dots')}</div>
+            <div class="sp-media" id="pv-media"></div>
+            <div class="sp-acts">${ic('heart')}${ic('bubble')}${ic('send')}<span></span>${ic('bookmark')}</div>
+            <p class="sp-capv" id="pv-cap"></p>
+          </div>
+        </aside>
+        <div class="nm-foot sp-foot"><button type="button" class="nm-btn" id="cancel">Cancel</button><button class="nm-btn primary" id="save">${ic('calendar')}<span id="save-l"></span></button></div>
+      </form>`, 'nm nm-post');
+
     const f = $('#post-form', box);
-    const draw = () => {
-      $('#thumbs', box).innerHTML = media.map((m, i) => `<span class="thumb">${m.kind === 'video' ? `<video src="${esc(m.url)}" muted preload="metadata"></video>` : `<img src="${esc(m.url)}" alt="">`}<button type="button" data-rm="${i}" aria-label="Remove">×</button></span>`).join('');
-      $$('[data-rm]', box).forEach((b) => (b.onclick = () => {
-        media.splice(Number(b.dataset.rm), 1);
-        draw();
-      }));
+    const input = $('#files', box);
+    f.tz.innerHTML = zones().map((z) => `<option value="${esc(z.tz)}" ${z.tz === tz ? 'selected' : ''}>${esc(`${z.text} · ${z.tz.replace(/_/g, ' ')}`)}</option>`).join('');
+
+    const drawPreview = () => {
+      const m = media[0];
+      const tall = type === 'REELS' || type === 'STORIES';
+      $('#pv', box).className = `sp-card ${tall ? 'tall' : ''}`;
+      $('#pv-media', box).innerHTML = (m ? (m.kind === 'video' ? `<video src="${esc(m.url)}" muted loop autoplay playsinline></video>` : `<img src="${esc(m.url)}" alt="">`) : SCENE)
+        + (type === 'CAROUSEL' ? `<span class="sp-dots">${Array.from({ length: Math.max(2, Math.min(media.length, 6)) }, (_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('')}</span>${media.length > 1 ? `<span class="sp-badge">1/${media.length}</span>` : ''}` : '')
+        + (type === 'REELS' ? `<span class="sp-type">${ic('reel')}</span>` : '') + (type === 'STORIES' ? '<span class="sp-bar"><i></i></span>' : '');
+      const cap = f.caption.value.trim();
+      $('#pv-cap', box).hidden = type === 'STORIES';
+      $('#pv-cap', box).innerHTML = `<b>${esc(user)}</b> ${cap ? esc(cap).replace(/(#[\p{L}\p{N}_]+)/gu, '<em>$1</em>') : '<span>Your caption will appear here...</span>'}`;
+      $('#cc', box).textContent = `${[...f.caption.value].length.toLocaleString()} / 2,200`;
     };
-    const sync = () => {
-      const t = f.type.value;
+    const drawThumbs = () => {
+      $('#thumbs', box).innerHTML = media.map((m, i) => `<span class="sp-thumb">${m.kind === 'video' ? `<video src="${esc(m.url)}" muted preload="metadata"></video>` : `<img src="${esc(m.url)}" alt="">`}<button type="button" data-rm="${i}" aria-label="Remove">${ic('x')}</button></span>`).join('');
+      $$('[data-rm]', box).forEach((b) => (b.onclick = () => { media.splice(Number(b.dataset.rm), 1); drawThumbs(); drawPreview(); }));
+    };
+    const drawWhen = () => {
+      $('#d-txt', box).textContent = f.date.value ? fmtDate(f.date.value) : 'Pick a date';
+      $('#t-txt', box).textContent = f.time.value ? fmtTime(f.time.value) : 'Pick a time';
+      $('#tz-txt', box).textContent = zoneLabel(tz).text;
+      $('#when', box).classList.toggle('off', mode === 'now');
+      $$('#when input', box).forEach((i) => (i.disabled = mode === 'now'));
+      $('#save-l', box).textContent = mode === 'now' ? 'Publish Now' : post ? 'Save Changes' : 'Schedule Post';
+    };
+    const setType = (t) => {
+      type = t;
+      $$('.sp-tab', box).forEach((b) => { b.classList.toggle('on', b.dataset.type === t); b.setAttribute('aria-checked', String(b.dataset.type === t)); });
+      const d = DROP[t];
+      $('#d-title', box).textContent = d.title;
+      $('#d-note', box).textContent = d.note;
+      input.accept = d.accept;
+      input.multiple = d.multi;
       $('[data-for=caption]', box).hidden = t === 'STORIES';
-      $('#media-hint', box).textContent = { IMAGE: 'One image. PNG/WebP are converted to JPEG.', CAROUSEL: '2 to 20 images or videos.', REELS: 'One MP4/MOV video.', STORIES: 'One image or video.' }[t];
+      drawPreview();
     };
-    f.type.onchange = sync;
-    sync();
-    draw();
-    $('#files', box).onchange = run(async (e) => {
-      if (!e.target.files.length) return;
+    $$('.sp-tab', box).forEach((b) => (b.onclick = () => setType(b.dataset.type)));
+
+    const upload = run(async (files) => {
+      files = [...files];
+      if (!files.length) return;
+      const big = files.find((x) => x.type.startsWith('image/') && x.size > 10 * 1024 * 1024);
+      if (big) throw new Error(`${big.name} is larger than 10 MB`);
       const form = new FormData();
-      for (const file of e.target.files) form.append('files', file);
+      for (const file of files) form.append('files', file);
       $('#save', box).disabled = true;
+      $('#drop', box).classList.add('busy');
       toast('Uploading…');
       try {
-        const up = await api('/upload', { method: 'POST', form });
-        media.push(...up.map(({ url, kind }) => ({ url, kind })));
-        draw();
+        const up = (await api('/upload', { method: 'POST', form })).map(({ url, kind }) => ({ url, kind }));
+        media = DROP[type].multi ? [...media, ...up].slice(0, 20) : up.slice(0, 1);
+        drawThumbs();
+        drawPreview();
         toast('Uploaded');
       } finally {
         $('#save', box).disabled = false;
-        e.target.value = '';
+        $('#drop', box).classList.remove('busy');
+        input.value = '';
       }
     });
+    const drop = $('#drop', box);
+    drop.onclick = () => input.click();
+    drop.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); } };
+    drop.ondragover = (e) => { e.preventDefault(); drop.classList.add('over'); };
+    drop.ondragleave = () => drop.classList.remove('over');
+    drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove('over'); upload(e.dataTransfer.files); };
+    input.onchange = () => upload(input.files);
+
+    f.caption.oninput = drawPreview;
+    $('#t-hash', box).onclick = () => insertAt(f.caption, (/\S$/.test(f.caption.value.slice(0, f.caption.selectionStart)) ? ' #' : '#'));
+    $('#t-ai', box).onclick = (e) => popover(e.currentTarget, [{ cap: 'Caption ideas' }, ...CAPTION_STARTERS.map((s) => ({ label: s, onClick: () => insertAt(f.caption, (f.caption.value.trim() ? '\n' : '') + s) }))], { align: 'right' });
+    $('#t-emoji', box).onclick = (e) => {
+      closePop();
+      pop = document.createElement('div');
+      pop.className = 'pop sp-emoji';
+      pop.innerHTML = EMOJIS.map((x) => `<button type="button">${x}</button>`).join('');
+      document.body.appendChild(pop);
+      const r = e.currentTarget.getBoundingClientRect();
+      pop.style.left = Math.max(8, Math.min(innerWidth - pop.offsetWidth - 8, r.right - pop.offsetWidth)) + 'px';
+      pop.style.top = (r.top - pop.offsetHeight - 8 > 8 ? r.top - pop.offsetHeight - 8 : r.bottom + 8) + 'px';
+      $$('button', pop).forEach((b) => (b.onclick = () => insertAt(f.caption, b.textContent)));
+    };
+
+    $$('input[name=mode]', box).forEach((r) => (r.onchange = () => { mode = f.mode.value; drawWhen(); }));
+    $$('.sp-pick input', box).forEach((i) => {
+      i.onchange = drawWhen;
+      i.onclick = () => { try { i.showPicker(); } catch {} };
+    });
+    f.tz.onchange = () => { tz = f.tz.value; drawWhen(); };
+
+    setType(type);
+    drawThumbs();
+    drawWhen();
     $('#cancel', box).onclick = closeModal;
     f.onsubmit = run(async (e) => {
       e.preventDefault();
-      const body = { type: f.type.value, caption: f.type.value === 'STORIES' ? '' : f.caption.value, media, scheduled_at: new Date(f.at.value).getTime() };
-      await api(post ? `/posts/${post.id}` : '/posts', { method: post ? 'PUT' : 'POST', body });
+      if (!media.length) throw new Error('Add a photo or video first');
+      if (mode === 'later' && (!f.date.value || !f.time.value)) throw new Error('Pick a date and time');
+      const when = mode === 'now' ? Date.now() : fromZone(f.date.value, f.time.value, tz);
+      if (mode === 'later' && when < Date.now() - 60000 && !confirm('That time has already passed, so the post will go out right away. Continue?')) return;
+      const body = { type, caption: type === 'STORIES' ? '' : f.caption.value, media, scheduled_at: when };
+      $('#save', box).disabled = true;
+      try { await api(post ? `/posts/${post.id}` : '/posts', { method: post ? 'PUT' : 'POST', body }); } finally { $('#save', box).disabled = false; }
       closeModal();
-      toast(post ? 'Post updated' : 'Post scheduled');
+      toast(mode === 'now' ? 'Publishing now' : post ? 'Post updated' : 'Post scheduled');
       route();
     });
   }
