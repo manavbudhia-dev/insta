@@ -1,10 +1,10 @@
 name: Deploy to server
 
-# main branch par har push ke baad latest code server par chala jaata hai.
+# merge-linkedin branch par har push ke baad latest code server par chala jaata hai.
 # Actions tab se "Run workflow" dabakar manually bhi chala sakte hain.
 on:
   push:
-    branches: [main]
+    branches: [merge-linkedin]
   workflow_dispatch:
 
 concurrency:
@@ -33,7 +33,7 @@ jobs:
         uses: appleboy/ssh-action@v1.2.0
         env:
           APP_DIR: ${{ vars.APP_DIR }}
-          BRANCH: main
+          BRANCH: merge-linkedin
           REPO: insta
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -56,6 +56,7 @@ jobs:
             cd "$APP_DIR"
             echo "Deploying $REPO ($BRANCH) in $APP_DIR"
             git fetch origin "$BRANCH"
+            git checkout -q "$BRANCH" 2>/dev/null || git checkout -q -b "$BRANCH" --track "origin/$BRANCH"
             git pull --ff-only origin "$BRANCH"
             # server par apna custom deploy.sh ho to wahi chalega
             if [ -x "$APP_DIR/deploy.sh" ]; then "$APP_DIR/deploy.sh"; exit 0; fi
