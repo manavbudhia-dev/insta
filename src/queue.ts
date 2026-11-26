@@ -81,15 +81,22 @@ async function process(job: Job): Promise<void> {
       return;
     }
   }
-  const payload = JSON.parse(job.payload);
+  let res: any;
   try {
-    const res =
+    const payload = JSON.parse(job.payload);
+    res =
       job.kind === 'dm' ? await sendDm(job.target, payload)
       : job.kind === 'private_reply' ? await sendPrivateReply(job.target, payload)
       : await replyToComment(job.target, payload.message);
-    const now = Date.now();
-    finish.run('sent', null, now, job.id);
-
+  } catch (e) {
+    handleSendError(job, e as IgError);
+    return;
+  }
+  const now = Date.now();
+  finish.run('sent', null, now, job.id);
+  // From here on Instagram has the message. A bookkeeping failure must not flip the job to failed/retry
+  // (a retry would send a duplicate), so it is only logged.
+  try {
     const igsid = job.kind === 'dm' ? job.target : res.recipient_id ?? job.igsid;
     if (igsid) {
       if (job.kind === 'private_reply' && res.recipient_id && res.recipient_id !== job.igsid) {
@@ -104,22 +111,25 @@ async function process(job: Job): Promise<void> {
       ).run(igsid, 'out', job.kind, job.preview, res.message_id ?? res.id ?? null, job.rule_id, job.flow_id, job.source, now);
     }
   } catch (e) {
-    const err = e as IgError;
-    err.message = redact(err.message);
-    const attempts = job.attempts + 1;
-    if (err.code === 368) {
-      // Instagram temporarily blocked the account for policy reasons. Continuing to send makes that worse.
-      setSetting('automation_enabled', 0);
-      log('error', 'Instagram temporarily blocked sending from this account (code 368). Automation has been switched off; review your rules, then turn it back on in Settings.');
-    }
-    if (err.transient && attempts < MAX_ATTEMPTS) {
-      const delay = Math.min(30 * 60_000, 30_000 * 2 ** attempts);
-      db.prepare("UPDATE outbox SET status = 'pending', attempts = ?, next_attempt_at = ?, error = ? WHERE id = ?").run(attempts, Date.now() + delay, err.message, job.id);
-      log('warn', `Send #${job.id} failed (attempt ${attempts}), retrying: ${err.message}`);
-    } else {
-      finish.run('failed', err.message, null, job.id);
-      log('error', `Send #${job.id} (${job.kind}) failed: ${err.message}`);
-    }
+    log('error', `Send #${job.id} was delivered but recording it failed: ${redact((e as Error).message)}`);
+  }
+}
+
+function handleSendError(job: Job, err: IgError): void {
+  err.message = redact(String(err?.message ?? err));
+  const attempts = job.attempts + 1;
+  if (err.code === 368) {
+    // Instagram temporarily blocked the account for policy reasons. Continuing to send makes that worse.
+    setSetting('automation_enabled', 0);
+    log('error', 'Instagram temporarily blocked sending from this account (code 368). Automation has been switched off; review your rules, then turn it back on in Settings.');
+  }
+  if (err.transient && attempts < MAX_ATTEMPTS) {
+    const delay = Math.min(30 * 60_000, 30_000 * 2 ** attempts);
+    db.prepare("UPDATE outbox SET status = 'pending', attempts = ?, next_attempt_at = ?, error = ? WHERE id = ?").run(attempts, Date.now() + delay, err.message, job.id);
+    log('warn', `Send #${job.id} failed (attempt ${attempts}), retrying: ${err.message}`);
+  } else {
+    finish.run('failed', err.message, null, job.id);
+    log('error', `Send #${job.id} (${job.kind}) failed: ${err.message}`);
   }
 }
 
