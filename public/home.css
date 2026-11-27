@@ -57,7 +57,7 @@ svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-widt
 .hello h1 { font-size: 30px; }
 .hello p { margin: 6px 0 0; }
 
-.apps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.apps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
 .app {
   position: relative; display: flex; flex-direction: column; gap: 16px; padding: 22px; border-radius: 20px;
   border: 1px solid var(--line); background: linear-gradient(180deg, var(--panel-2), var(--panel));
@@ -70,6 +70,7 @@ svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-widt
 .app-ico.dm { background: linear-gradient(135deg, #fa7e1e, #d62976 55%, #4f5bd5); }
 .app-ico.sched { background: linear-gradient(135deg, #8b5cf6, #ec4899); }
 .app-ico.li { background: linear-gradient(135deg, #0a66c2, #3b82f6); }
+.app-ico.wa { background: linear-gradient(135deg, #25d366, #128c7e); }
 .app h3 { font-size: 18px; }
 .app p { margin: 4px 0 0; color: var(--muted); font-size: 13.5px; }
 .pill { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 99px; font-size: 12px; font-weight: 600; background: var(--raise); color: var(--muted); white-space: nowrap; }
@@ -94,6 +95,7 @@ a.row:hover { border-color: var(--line-2); }
 .row .dot.warn { background: var(--warn-bg); color: var(--warn); }
 .row .dot.dm, .row .dot.sched { background: rgba(214, 41, 118, .18); color: #f472b6; }
 .row .dot.li { background: rgba(10, 102, 194, .22); color: #60a5fa; }
+.row .dot.wa { background: rgba(37, 211, 102, .15); color: #25d366; }
 .row .txt { min-width: 0; flex: 1; }
 .row .txt b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row .txt span { display: block; color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

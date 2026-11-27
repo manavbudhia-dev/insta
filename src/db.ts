@@ -219,8 +219,8 @@ export function redact(text: string): string {
     .replace(/(Bearer\s+)[\w.\-|]+/gi, '$1[redacted]')
     .replace(/\b(?:EAA|IGAA|IGQ)[A-Za-z0-9_-]{20,}/g, '[redacted]')
     .replace(/whsec_[A-Za-z0-9_-]{10,}/g, '[redacted]');
-  const stored = openSecret((db.prepare("SELECT value FROM settings WHERE key = 'ig_token'").get() as { value: string } | undefined)?.value ?? '');
-  for (const s of [stored, config.metaAppSecret, config.adminPassword, config.sessionSecret, config.webhookVerifyToken]) {
+  const stored = (db.prepare("SELECT value FROM settings WHERE key IN ('ig_token', 'wa_token', 'wa_app_secret')").all() as { value: string }[]).map((r) => openSecret(r.value));
+  for (const s of [...stored, config.metaAppSecret, config.adminPassword, config.sessionSecret, config.webhookVerifyToken]) {
     if (s && s.length >= 8) out = out.split(s).join('[redacted]');
   }
   return out;
