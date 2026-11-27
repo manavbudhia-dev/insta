@@ -59,7 +59,7 @@ api.get('/status', h(() => {
       permissions: PERMISSIONS,
       verifyToken: !!config.webhookVerifyToken,
       https: config.baseUrl.startsWith('https://'),
-      webhookUrl: `${config.baseUrl}/webhook`,
+      webhookUrl: config.webhookCallbackUrl,
       redirectUri: `${config.baseUrl}/auth/instagram/callback`,
       privacyUrl: `${config.baseUrl}/privacy`,
     },

@@ -56,7 +56,8 @@
   let month = null; // first day of the month on screen
   let selected = today();
   let mode = store.get('cal_mode', 'month');
-  let plat = multi ? store.get('cal_platform', 'all') : 'instagram';
+  let plat = multi ? store.get('cal_platform', 'all') : PLATS[0];
+  if (plat !== 'all' && !PLATS.includes(plat)) plat = 'all';
   let data = { posts: [], instagram: [], linkedin: [] };
 
   /** "#calendar/linkedin" (e.g. from the LinkedIn app) opens the home calendar filtered to that platform. */

@@ -1,3 +1,4 @@
+import { appEnabled } from './apps.js';
 import { db, firstTime, getNum, getSetting, log, opt, setSetting } from './db.js';
 import { handleComment } from './engine.js';
 import { acct, connected, ig, IgError } from './instagram.js';
@@ -122,7 +123,7 @@ async function loop(): Promise<void> {
   if (running) return;
   running = true;
   try {
-    if (connected()) {
+    if (connected() && appEnabled('dm')) {
       await pollOnce();
       setSetting('last_poll_at', Date.now());
       setSetting('last_poll_error', '');

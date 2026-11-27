@@ -6,6 +6,10 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express, { type Request, type Response } from 'express';
+import { appEnabled } from '../apps.js';
+import { config } from '../config.js';
+import { db, delSetting, getSetting, log, redact, setSetting } from '../db.js';
+import { forward } from '../webhook.js';
 import { config } from '../config.js';
 import { db, delSetting, getSetting, log, redact, setSetting } from '../db.js';
 import { build, cloud, WaError } from './cloud.js';
@@ -151,6 +155,14 @@ export function createWhatsAppApp(opts: { isLoggedIn: (req: Request) => boolean 
       return;
     }
     res.sendStatus(200);
+    // One callback URL per Meta app: the main instance passes WhatsApp events on to the client instances (never twice).
+    if (!req.get('x-autopilot-forwarded')) forward('/whatsapp/webhook', raw, req.get('x-hub-signature-256')!);
+    const body = req.body;
+    if (body?.object !== 'whatsapp_business_account' || !Array.isArray(body.entry)) return;
+    const mine = phoneId();
+    // No number connected here, or the app is switched off: these events are not ours to store.
+    if (!mine || !appEnabled('whatsapp')) return;
+    setSetting('wa_last_webhook_at', Date.now());
     setSetting('wa_last_webhook_at', Date.now());
     const body = req.body;
     if (body?.object !== 'whatsapp_business_account' || !Array.isArray(body.entry)) return;
@@ -160,6 +172,7 @@ export function createWhatsAppApp(opts: { isLoggedIn: (req: Request) => boolean 
         if (change.field !== 'messages' || !change.value) continue;
         // One WhatsApp Business Account can hold several numbers; only act for the connected one.
         const pid = String(change.value.metadata?.phone_number_id ?? '');
+        if (pid !== mine) continue;
         if (mine && pid && pid !== mine) continue;
         handleChange(change.value);
       }

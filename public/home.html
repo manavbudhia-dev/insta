@@ -11,6 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/home.css">
   <link rel="stylesheet" href="/calendar.css">
+  <link rel="stylesheet" href="/apps.css">
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
@@ -35,7 +36,7 @@
   <div id="hub" class="hub" hidden>
     <header class="top">
       <div class="brand"><span class="logo" data-logo></span>Autopilot</div>
-      <button class="btn ghost" id="signout" type="button">Sign out</button>
+      <div class="top-acts"><a class="btn ghost" id="clients-link" href="/clients" hidden>Clients</a><button class="btn ghost" id="signout" type="button">Sign out</button></div>
     </header>
 
     <section class="hello">
@@ -58,7 +59,7 @@
     </section>
 
     <section class="cal-home" id="cal-home" aria-labelledby="cal-home-title">
-      <div class="sec-head"><h2 id="cal-home-title">Content calendar</h2><span class="muted small">Instagram and LinkedIn posts together</span></div>
+      <div class="sec-head"><h2 id="cal-home-title">Content calendar</h2><span class="muted small" id="cal-sub">Instagram and LinkedIn posts together</span></div>
       <div id="calendar"><div class="skeleton" style="height:420px"></div></div>
     </section>
 
@@ -76,6 +77,5 @@
 
   <div id="toast" class="toast" hidden></div>
   <script src="/home.js"></script>
-  <script src="/calendar.js"></script>
 </body>
 </html>

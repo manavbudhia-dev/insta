@@ -124,7 +124,7 @@ before(async () => {
       META_APP_ID: '123', META_APP_SECRET: SECRET, META_CONFIG_ID: 'CFG9', WEBHOOK_VERIFY_TOKEN: 'verify-me',
       GRAPH_BASE: `http://127.0.0.1:${MOCK_PORT}`,
       QUEUE_TICK_MS: '100', SEND_GAP_MS: '10', SCHEDULER_TICK_MS: '200', CONTAINER_POLL_MS: '50',
-      WEBHOOK_RECHECK_MS: '600', WEBHOOK_WATCH_DELAY_MS: '100',
+      WEBHOOK_RECHECK_MS: '600', WEBHOOK_WATCH_DELAY_MS: '100', FORWARD_WEBHOOKS_FILE: path.join(dataDir, 'forward.json'),
     },
     stdio: ['ignore', 'inherit', 'inherit'],
   });
@@ -557,5 +557,35 @@ test('one-click n8n setup: creates, publishes and connects the workflow; a secon
   } finally {
     n8n.close();
     await call('PUT', '/api/integrations/webhook', { url: '' });
+  }
+});
+
+test('multi-client: verified webhooks are passed on to client instances unchanged, once', async () => {
+  const got: { headers: http.IncomingHttpHeaders; raw: string }[] = [];
+  const client = http.createServer((req, res) => {
+    let raw = '';
+    req.on('data', (c) => (raw += c));
+    req.on('end', () => { got.push({ headers: req.headers, raw }); res.writeHead(200).end(); });
+  });
+  await new Promise<void>((r) => client.listen(34805, r));
+  try {
+    fs.writeFileSync(path.join(dataDir, 'forward.json'), JSON.stringify(['http://127.0.0.1:34805']));
+    const payload = dm('hello from another client', 'mid.fwd1', {}, 'OTHERUSER');
+    const raw = JSON.stringify(payload);
+    assert.equal((await webhook(payload)).status, 200);
+    const f = await until(() => got[0], 'forwarded webhook');
+    assert.equal(f.raw, raw, 'body unchanged, so the signature still verifies');
+    assert.equal(f.headers['x-hub-signature-256'], 'sha256=' + crypto.createHmac('sha256', SECRET).update(raw).digest('hex'));
+    assert.equal(f.headers['x-autopilot-forwarded'], '1');
+
+    // A forged webhook is not passed on, and one that was already forwarded is not forwarded again.
+    assert.equal((await webhook(dm('x', 'mid.fwd2'), 'wrong-secret')).status, 401);
+    const sig = 'sha256=' + crypto.createHmac('sha256', SECRET).update(raw).digest('hex');
+    await fetch(APP + '/webhook', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Hub-Signature-256': sig, 'X-Autopilot-Forwarded': '1' }, body: raw });
+    await new Promise((r) => setTimeout(r, 500));
+    assert.equal(got.length, 1);
+  } finally {
+    fs.writeFileSync(path.join(dataDir, 'forward.json'), '[]');
+    client.close();
   }
 });

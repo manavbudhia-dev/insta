@@ -61,6 +61,10 @@ jobs:
             # server par apna custom deploy.sh ho to wahi chalega
             if [ -x "$APP_DIR/deploy.sh" ]; then "$APP_DIR/deploy.sh"; exit 0; fi
             if docker compose version >/dev/null 2>&1; then DC="docker compose"; else DC="docker-compose"; fi
-            $DC up -d --build --remove-orphans
+            # Client instances (scripts/client.sh) live in docker-compose.clients.yml; without it --remove-orphans would stop them.
+            FILES="-f docker-compose.yml"
+            [ -f docker-compose.clients.yml ] && FILES="$FILES -f docker-compose.clients.yml"
+            mkdir -p clients/shared/caddy
+            $DC $FILES up -d --build --remove-orphans
             docker image prune -f
             echo "Deploy ho gaya: $(git log -1 --format='%h %s')"

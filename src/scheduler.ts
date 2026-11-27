@@ -1,3 +1,4 @@
+import { appEnabled } from './apps.js';
 import { db, log, prune } from './db.js';
 import { acct, checkTokenExpiry, connected, ig, type IgError } from './instagram.js';
 
@@ -123,7 +124,7 @@ async function runPost(post: Post): Promise<void> {
 }
 
 function tick(): void {
-  if (!connected()) return;
+  if (!connected() || !appEnabled('scheduler')) return;
   const due = db.prepare("SELECT * FROM posts WHERE status = 'scheduled' AND scheduled_at <= ? ORDER BY scheduled_at LIMIT 3").all(Date.now()) as Post[];
   for (const p of due) void runPost(p);
 }

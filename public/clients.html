@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#090a1f">
+  <title>Clients · Autopilot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/home.css">
+  <link rel="stylesheet" href="/apps.css">
+</head>
+<body>
+  <div class="hub">
+    <header class="top">
+      <a class="brand" href="/" style="text-decoration:none"><span class="logo"><svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><defs><linearGradient id="g-bolt" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8b5cf6"/><stop offset="1" stop-color="#4f46e5"/></linearGradient></defs><path d="M13.5 1.5 4 13.2h6.2L9 22.5l10-12.4h-6.3z" fill="url(#g-bolt)" stroke="url(#g-bolt)" stroke-width="1.2" stroke-linejoin="round"/></svg></span>Autopilot</a>
+      <a class="btn ghost" href="/">All apps</a>
+    </header>
+    <div class="cl-head">
+      <div><h1>Clients</h1><p class="muted" style="margin:6px 0 0">Choose which tools each client gets. Changes apply instantly; a switched-off tool shows as <b>Locked</b> with your message below.</p></div>
+      <button class="btn" id="refresh" type="button">Refresh</button>
+    </div>
+    <form class="panel" id="upsell" style="margin-bottom:18px">
+      <div class="panel-head"><h2>Message on locked tools</h2><span class="muted small">Shown to every client on a tool they don't have</span></div>
+      <div class="cl-up">
+        <label>Message<input type="text" name="message" maxlength="500"></label>
+        <label>Contact <span class="muted small">(WhatsApp number, email or link)</span><input type="text" name="contact" maxlength="200" placeholder="+91 98765 43210"></label>
+        <button class="btn primary" type="submit">Save for all</button>
+      </div>
+    </form>
+    <section class="cl-grid" id="list"><div class="skeleton" style="height:90px"></div></section>
+  </div>
+  <div id="toast" class="toast" hidden></div>
+  <script src="/clients.js"></script>
+</body>
+</html>

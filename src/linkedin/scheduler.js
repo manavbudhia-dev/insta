@@ -10,9 +10,12 @@ const MAX_ATTEMPTS = 3;
 let busy = false, syncingStats = false, stopping = false;
 export const stop = () => { stopping = true; };
 export const isBusy = () => busy;
+// The platform switches the LinkedIn app off for a client: nothing publishes or runs until it is back on.
+let enabled = () => true;
+export const setEnabledCheck = (fn) => { enabled = fn; };
 
 // Timers must never crash the server: Node exits on an unhandled rejection or an exception thrown from a timer.
-const safe = (name, fn) => async () => { try { await fn(); } catch (e) { console.error(`${name} failed:`, e?.message || e); } };
+const safe = (name, fn) => async () => { if (!enabled()) return; try { await fn(); } catch (e) { console.error(`${name} failed:`, e?.message || e); } };
 
 export function start() {
   // A crash mid-request may or may not have posted. Never auto-repost; ask a human to check.

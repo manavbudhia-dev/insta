@@ -165,6 +165,57 @@ If you later obtain Advanced Access, comment webhooks start arriving and replies
 
 DM, story reply and story mention triggers arrive by webhook and are instant.
 
+### Clients on their own subdomains (one command each)
+
+To run DM Autopilot for clients, each client gets a separate instance (own container, own SQLite data, own login,
+own HTTPS subdomain) next to yours. On the server, in the app folder:
+
+```bash
+scripts/client.sh add kalyanakuri kalyanakuri.in   # -> https://kalyanakuri.zealcoder.in + a generated password
+scripts/client.sh list
+scripts/client.sh password kalyanakuri
+scripts/client.sh remove kalyanakuri [--purge]
+```
+
+Once, before the first client: add a wildcard DNS record `*.zealcoder.in` (A record) pointing at the server. The
+root domain is taken from `BASE_URL` (`insta.zealcoder.in` -> `zealcoder.in`); set `CLIENT_ROOT_DOMAIN` in `.env` to
+override it.
+
+How it fits together:
+
+- Meta sends every account's webhooks to the one callback URL of the Meta app, so the Meta dashboard keeps pointing
+  at the main instance. The main instance verifies the signature and passes the raw webhook on, unchanged, to the
+  client instances (`clients/shared/forward.json`). Each client checks the signature again and acts only on its own
+  account; an instance with no account connected stores nothing.
+- Each client instance is locked to one Instagram account (`IG_ACCOUNT_LOCK`), so a system user token that can reach
+  several clients' accounts still only ever shows that client's account there.
+- Connecting a client without App Review: the client shares their Instagram account with your business portfolio
+  (Meta Business Settings -> Partners), you assign it to your system user and connect it in the client's dashboard.
+  Serving accounts you do not manage through a self-serve login needs Advanced Access (App Review and Business
+  Verification).
+- Generated files (`docker-compose.clients.yml`, `clients/`) stay on the server and out of git. The deploy workflow
+  starts the client instances too, with the same image.
+
+### Choosing tools per client (Clients page)
+
+On your main dashboard, **Clients** (top right of the home page, at `/clients`) lists every client with a switch for
+each tool: Instagram DMs, Instagram Scheduler, LinkedIn and WhatsApp. A switch takes effect at once, without a restart.
+
+- A switched-off tool stays on the client's home page as **Locked**, with what it does and an **Unlock** button. The
+  message and contact on that page (a WhatsApp number opens a chat, an email opens a mail, or a link) are set once
+  at the top of the Clients page for all clients.
+- Locked means locked: its pages show the unlock screen, its API answers 403, and its background work (auto-replies,
+  publishing, broadcasts) pauses. Meta's webhooks keep getting a normal answer so the subscription stays healthy.
+- The client's own login cannot change this. The main instance talks to each client over the private Docker network
+  with a per-client control key that `scripts/client.sh` creates (`CONTROL_SECRET` in the client's `.env`, listed in
+  `clients/shared/clients.json`); Caddy answers `/internal/*` with 404, so it is never reachable from the internet.
+- Clients created before this existed get a control key with `scripts/client.sh sync`.
+- Creating and removing clients stays a server command (`scripts/client.sh add/remove`): doing it from the dashboard
+  would mean giving the web app control of Docker.
+- WhatsApp webhooks are passed on to client instances like Instagram's, so a client's WhatsApp number can live in your
+  Meta app. New clients also get your LinkedIn app and Anthropic key from `.env` (they can set their own in LinkedIn
+  settings); add `https://<client>.<domain>/linkedin/auth/linkedin/callback` to the LinkedIn app's redirect URLs.
+
 ### One-click n8n setup
 
 Settings → **One-click n8n setup** builds the n8n side for you: paste the n8n address, an n8n API key and a Google Sheet

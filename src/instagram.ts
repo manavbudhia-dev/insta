@@ -182,7 +182,13 @@ export async function saveToken(accessToken: string, expiresInSec?: number): Pro
     query: { fields: 'id,username' },
     accessToken,
   });
-  const accounts = (list.data ?? []).map((a) => ({ id: String(a.id), username: a.username ?? '' }));
+  const all = (list.data ?? []).map((a) => ({ id: String(a.id), username: a.username ?? '' }));
+  // A client instance only ever sees its own client's account, even when the token can reach others.
+  const lock = config.igAccountLock;
+  const accounts = lock.length ? all.filter((a) => lock.includes(a.id) || lock.includes(a.username.toLowerCase())) : all;
+  if (all.length && !accounts.length) {
+    throw new Error(`This token cannot reach @${lock.join(', @')}. Ask the client to share that Instagram account with your business portfolio, then try again.`);
+  }
   if (!accounts.length) {
     throw new Error(
       'This token has no Instagram account assigned. Connect again and tick your Instagram professional account when asked which assets to share.',
