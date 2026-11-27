@@ -82,12 +82,22 @@ export function login(req: Request, res: Response): void {
   }
   attempts.delete(ip);
   for (const [k, v] of attempts) if (v.reset <= now) attempts.delete(k); // keep the map from growing forever
+  startSession(res);
+  res.json({ ok: true });
+}
+
+/**
+ * Signs the browser in (password, Google or an email link). SameSite=Strict still works after Google's redirect: the
+ * pages are static and check the session with same-site fetches, which carry the cookie.
+ */
+export function startSession(res: Response): void {
   const secure = isHttps() ? '; Secure' : '';
   const ttl = SESSION_DAYS * 86400_000;
   const token = makeToken('session', ttl);
-  db.prepare('INSERT INTO sessions (nonce, expires_at, pw_fp) VALUES (?, ?, ?)').run(token.split('.')[2], now + ttl, passwordFingerprint());
-  res.setHeader('Set-Cookie', `${cookieName()}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_DAYS * 86400}${secure}`);
-  res.json({ ok: true });
+  db.prepare('INSERT INTO sessions (nonce, expires_at, pw_fp) VALUES (?, ?, ?)').run(token.split('.')[2], Date.now() + ttl, passwordFingerprint());
+  const cookie = `${cookieName()}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_DAYS * 86400}${secure}`;
+  const prev = res.getHeader?.('Set-Cookie');
+  res.setHeader('Set-Cookie', prev == null ? cookie : [...(Array.isArray(prev) ? prev : [String(prev)]), cookie]);
 }
 
 /** Ends the dashboard session (also used by the LinkedIn section's "Sign out"). Appends, so other cookies set on the same response survive. */

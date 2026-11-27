@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # One command per client: a separate DM Autopilot for each client on its own subdomain.
 #
-#   scripts/client.sh add <name> <instagram_username>   # e.g. add kalyanakuri kalyanakuri.in  ->  https://kalyanakuri.zealcoder.in
+#   scripts/client.sh add <name> <instagram_username> [email]   # e.g. add kalyanakuri kalyanakuri.in owner@gmail.com
+#                                                    #  ->  https://kalyanakuri.zealcoder.in (email = Google / email-link login)
 #   scripts/client.sh list
 #   scripts/client.sh password <name>
 #   scripts/client.sh remove <name> [--purge]            # --purge also deletes the client's data volume
@@ -27,6 +28,11 @@ envget() { # envget FILE KEY
   grep -E "^$2=" "$1" | tail -1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//' || true
 }
 rand() { LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c "$1" || true; }
+envset() { # envset FILE KEY VALUE  (empty VALUE removes the key)
+  local tmp="$1.tmp.$$"
+  awk -v k="$2" -v v="$3" 'BEGIN{done=0} $0 ~ "^"k"=" { if (v != "" && !done) { print k"="v; done=1 } next } { print } END{ if (v != "" && !done) print k"="v }' "$1" >"$tmp"
+  chmod 600 "$tmp"; mv "$tmp" "$1"
+}
 
 [ -f .env ] || die "run this in the app folder on the server (no .env here)"
 MAIN_URL="$(envget .env BASE_URL)"; MAIN_URL="${MAIN_URL%/}"
@@ -55,8 +61,12 @@ generate() {
   mkdir -p "$SHARED/caddy"
   local names; names="$(clients)"
   # Every client needs a control key so the main dashboard's Clients page can switch its tools (older clients get one here).
+  # Shared settings follow the main .env: email (Resend), where unlock requests go, and Google sign-in through the main site.
+  local via=""; [ -n "$(envget .env GOOGLE_CLIENT_ID)" ] && via="$MAIN_URL"
   for n in $names; do
     if [ -z "$(envget "$CLIENTS_DIR/$n/.env" CONTROL_SECRET)" ]; then printf 'CONTROL_SECRET=%s\n' "$(rand 48)" >>"$CLIENTS_DIR/$n/.env"; fi
+    for k in RESEND_API_KEY EMAIL_FROM OWNER_EMAIL; do envset "$CLIENTS_DIR/$n/.env" "$k" "$(envget .env "$k")"; done
+    envset "$CLIENTS_DIR/$n/.env" GOOGLE_AUTH_VIA "$via"
   done
   local tmp="$COMPOSE_CLIENTS.tmp"
   {
@@ -138,7 +148,8 @@ reload_caddy() {
 cmd="${1:-}"
 case "$cmd" in
   add)
-    name="${2:-}"; ig="${3:-}"; ig="${ig#@}"
+    name="${2:-}"; ig="${3:-}"; ig="${ig#@}"; email="$(printf '%s' "${4:-}" | tr 'A-Z' 'a-z')"
+    if [ -n "$email" ] && ! [[ "$email" =~ ^[^[:space:]@,]+@[^[:space:]@,]+\.[a-z]{2,}$ ]]; then die "\"$email\" is not an email address"; fi
     [[ "$name" =~ ^[a-z0-9][a-z0-9-]{1,30}$ ]] || die "name must be 2-31 characters: a-z, 0-9 and -, e.g. kalyanakuri"
     for r in $RESERVED; do [ "$name" = "$r" ] && die "\"$name\" is reserved, pick another name"; done
     [ -n "$ig" ] || die "usage: scripts/client.sh add <name> <instagram_username>"
@@ -159,6 +170,7 @@ META_APP_SECRET=$(envget .env META_APP_SECRET)
 META_CONFIG_ID=$(envget .env META_CONFIG_ID)
 GRAPH_VERSION=$(envget .env GRAPH_VERSION)
 CONTROL_SECRET=$(rand 48)
+LOGIN_EMAILS=$email
 EOF
     # LinkedIn app and AI key: the client's LinkedIn scheduler uses yours unless they set their own in its Settings.
     for k in LINKEDIN_CLIENT_ID LINKEDIN_CLIENT_SECRET LINKEDIN_VERSION ANTHROPIC_API_KEY; do
@@ -178,6 +190,7 @@ Client "$name" is ready.
   Password  : $pw
   Instagram : @$ig (only this account can be connected here)
   Tools     : all on. Switch them per client on $MAIN_URL/clients
+  Login     : ${email:-password only}$([ -n "$email" ] && echo ' (Google or email link; send the welcome email from the Clients page)')
 
 Next:
   1. Client: Meta Business Settings -> Partners -> share the Instagram account @$ig with your business portfolio,

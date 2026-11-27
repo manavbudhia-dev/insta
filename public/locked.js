@@ -37,7 +37,23 @@
       <p class="muted">${esc(msg)}</p>
       ${info.points.length ? `<ul class="lock-points">${info.points.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>` : ''}
       ${contactText}
-      <div class="lock-acts">${link ? `<a class="btn primary" href="${esc(link.href)}" target="_blank" rel="noopener">${esc(link.label)}</a>` : ''}<a class="btn ghost" href="/">Back to home</a></div>`;
+      <div class="lock-acts">${view?.managed ? '<button class="btn primary" type="button" id="request">Request unlock</button>' : ''}${link ? `<a class="btn${view?.managed ? '' : ' primary'}" href="${esc(link.href)}" target="_blank" rel="noopener">${esc(link.label)}</a>` : ''}<a class="btn ghost" href="/">Back to home</a></div>
+      <p class="muted small" id="req-msg" hidden></p>`;
+    const req = document.getElementById('request');
+    if (req) req.onclick = async () => {
+      req.disabled = true;
+      const msg = document.getElementById('req-msg');
+      try {
+        const r = await fetch('/api/apps/unlock-request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ app: id }) });
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'Could not send the request');
+        req.textContent = 'Request sent ✓';
+        msg.textContent = "We've let your account manager know. You'll see the tool here as soon as it's switched on.";
+      } catch (e) {
+        req.disabled = false;
+        msg.textContent = e.message;
+      }
+      msg.hidden = false;
+    };
   }
   start();
 })();

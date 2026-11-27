@@ -218,7 +218,9 @@ export function redact(text: string): string {
     .replace(/((?:access_token|client_secret|appsecret_proof|input_token|code)=)[^&\s"']+/gi, '$1[redacted]')
     .replace(/(Bearer\s+)[\w.\-|]+/gi, '$1[redacted]')
     .replace(/\b(?:EAA|IGAA|IGQ)[A-Za-z0-9_-]{20,}/g, '[redacted]')
-    .replace(/whsec_[A-Za-z0-9_-]{10,}/g, '[redacted]');
+    .replace(/whsec_[A-Za-z0-9_-]{10,}/g, '[redacted]')
+    .replace(/\bre_[A-Za-z0-9_]{16,}/g, '[redacted]')
+    .replace(/GOCSPX-[A-Za-z0-9_-]{10,}/g, '[redacted]');
   const stored = (db.prepare("SELECT value FROM settings WHERE key IN ('ig_token', 'wa_token', 'wa_app_secret')").all() as { value: string }[]).map((r) => openSecret(r.value));
   for (const s of [...stored, config.metaAppSecret, config.adminPassword, config.sessionSecret, config.webhookVerifyToken]) {
     if (s && s.length >= 8) out = out.split(s).join('[redacted]');
