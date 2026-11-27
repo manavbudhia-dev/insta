@@ -1,10 +1,16 @@
 services:
   app:
     build: .
+    # Named so client instances (scripts/client.sh) run the same image.
+    image: insta-app:latest
     restart: unless-stopped
     env_file: .env
+    environment:
+      # Meta webhooks for client accounts arrive here and are passed on to the client instances listed in this file.
+      FORWARD_WEBHOOKS_FILE: /clients/forward.json
     volumes:
       - appdata:/data
+      - ./clients/shared:/clients:ro
     expose:
       - "3000"
     # Hardening: read-only image, no new privileges, only the capabilities the entrypoint needs
@@ -43,6 +49,7 @@ services:
       DOMAIN: ${DOMAIN:?Set DOMAIN in .env}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./clients/shared/caddy:/etc/caddy/clients:ro
       - caddy_data:/data
       - caddy_config:/config
 

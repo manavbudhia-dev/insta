@@ -2,3 +2,12 @@ node_modules
 dist
 data
 .env
+
+# Multi-client setup (scripts/client.sh): per-client secrets and generated files stay on the server
+/clients/*
+!/clients/shared/
+/clients/shared/*
+!/clients/shared/caddy/
+/clients/shared/caddy/*
+!/clients/shared/caddy/_placeholder.caddy
+/docker-compose.clients.yml

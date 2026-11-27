@@ -8,3 +8,6 @@
 	}
 	reverse_proxy app:3000
 }
+
+# Client subdomains, written by scripts/client.sh.
+import /etc/caddy/clients/*.caddy

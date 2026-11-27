@@ -161,6 +161,37 @@ If you later obtain Advanced Access, comment webhooks start arriving and replies
 
 DM, story reply and story mention triggers arrive by webhook and are instant.
 
+### Clients on their own subdomains (one command each)
+
+To run DM Autopilot for clients, each client gets a separate instance (own container, own SQLite data, own login,
+own HTTPS subdomain) next to yours. On the server, in the app folder:
+
+```bash
+scripts/client.sh add kalyanakuri kalyanakuri.in   # -> https://kalyanakuri.zealcoder.in + a generated password
+scripts/client.sh list
+scripts/client.sh password kalyanakuri
+scripts/client.sh remove kalyanakuri [--purge]
+```
+
+Once, before the first client: add a wildcard DNS record `*.zealcoder.in` (A record) pointing at the server. The
+root domain is taken from `BASE_URL` (`insta.zealcoder.in` -> `zealcoder.in`); set `CLIENT_ROOT_DOMAIN` in `.env` to
+override it.
+
+How it fits together:
+
+- Meta sends every account's webhooks to the one callback URL of the Meta app, so the Meta dashboard keeps pointing
+  at the main instance. The main instance verifies the signature and passes the raw webhook on, unchanged, to the
+  client instances (`clients/shared/forward.json`). Each client checks the signature again and acts only on its own
+  account; an instance with no account connected stores nothing.
+- Each client instance is locked to one Instagram account (`IG_ACCOUNT_LOCK`), so a system user token that can reach
+  several clients' accounts still only ever shows that client's account there.
+- Connecting a client without App Review: the client shares their Instagram account with your business portfolio
+  (Meta Business Settings -> Partners), you assign it to your system user and connect it in the client's dashboard.
+  Serving accounts you do not manage through a self-serve login needs Advanced Access (App Review and Business
+  Verification).
+- Generated files (`docker-compose.clients.yml`, `clients/`) stay on the server and out of git. The deploy workflow
+  starts the client instances too, with the same image.
+
 ### One-click n8n setup
 
 Settings → **One-click n8n setup** builds the n8n side for you: paste the n8n address, an n8n API key and a Google Sheet
