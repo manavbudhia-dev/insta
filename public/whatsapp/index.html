@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#090a1f">
+  <title>WhatsApp Automation · Autopilot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/home.css">
+  <link rel="stylesheet" href="/whatsapp/whatsapp.css">
+</head>
+<body>
+  <div class="hub wa">
+    <header class="top">
+      <a class="brand back" href="/" title="Back to Autopilot home">
+        <span class="wa-logo" aria-hidden="true"><svg viewBox="0 0 24 24" class="i"><path d="M3 21l1.7-4.6A8.5 8.5 0 1 1 8 19.6z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1.2-1.4-2-1-1 .8a4 4 0 0 1-2.1-2.1l.8-1-1-2z"/></svg></span>
+        WhatsApp Automation
+      </a>
+      <span id="conn" class="pill">Loading…</span>
+    </header>
+
+    <nav class="tabs" id="tabs" aria-label="Sections">
+      <a href="#overview" data-tab="overview">Overview</a>
+      <a href="#inbox" data-tab="inbox">Inbox <span class="badge" id="badge" hidden></span></a>
+      <a href="#rules" data-tab="rules">Auto-replies</a>
+      <a href="#broadcasts" data-tab="broadcasts">Broadcasts</a>
+      <a href="#templates" data-tab="templates">Templates</a>
+      <a href="#activity" data-tab="activity">Activity</a>
+      <a href="#settings" data-tab="settings">Settings</a>
+    </nav>
+
+    <main id="main"><div class="skeleton" style="height:240px"></div></main>
+  </div>
+  <div id="toast" class="toast" hidden></div>
+  <script src="/whatsapp/app.js"></script>
+</body>
+</html>
