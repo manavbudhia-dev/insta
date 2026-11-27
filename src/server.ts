@@ -5,6 +5,8 @@ import { assertConfig, config } from './config.js';
 import { api } from './api.js';
 import { appEnabled, appsView, controlRouter, lastActivity, type AppId } from './apps.js';
 import { clientsAvailable, clientsRouter } from './clients.js';
+import { loginOptions, loginRouter } from './login.js';
+import { accountRouter, startNotify, stopNotify, unlockRouter } from './notify.js';
 import { checkToken, endSession, isLoggedIn, login, logout, makeToken, requireLogin } from './auth.js';
 import { createLinkedInApp } from './linkedin/server.js';
 import { createWhatsAppApp } from './whatsapp/routes.js';
@@ -121,7 +123,11 @@ app.use(express.json({ limit: '1mb' }));
 
 app.post('/api/login', login);
 app.post('/api/logout', logout);
-app.get('/api/session', (req, res) => void res.json({ loggedIn: isLoggedIn(req) }));
+// Google and email-link sign-in (the password keeps working as a backup).
+app.use(loginRouter);
+app.get('/api/session', (req, res) => void res.json({ loggedIn: isLoggedIn(req), ...loginOptions() }));
+app.use('/api/account', requireLogin, accountRouter);
+app.use('/api/apps/unlock-request', requireLogin, unlockRouter);
 app.get('/api/apps', requireLogin, (_req, res) => void res.json({ ...appsView(), clients: clientsAvailable() }));
 app.use('/api/clients', requireLogin, clientsRouter);
 
@@ -164,6 +170,7 @@ app.get(['/dm', '/dm/'], locked('dm', () => false), (_req, res) => res.sendFile(
 app.get(['/scheduler', '/scheduler/'], locked('scheduler', () => false), (_req, res) => res.sendFile(path.join(publicDir, 'index.html')));
 app.get('/locked', (_req, res) => res.sendFile(path.join(publicDir, 'locked.html')));
 app.get('/clients', (_req, res) => res.sendFile(path.join(publicDir, 'clients.html')));
+app.get('/account', (_req, res) => res.sendFile(path.join(publicDir, 'account.html')));
 app.use(express.static(publicDir, { extensions: ['html'], index: false }));
 
 // Never leak stack traces or internals; oversized or malformed requests get a plain JSON answer.
@@ -188,6 +195,7 @@ const server = app.listen(config.port, () => {
   startSnapshots();
   linkedin.start();
   whatsapp.start();
+  startNotify();
 });
 
 // A stray rejection should be logged, not take the whole worker down mid-send.
@@ -198,6 +206,7 @@ let shuttingDown = false;
 async function shutdown(signal: string): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
+  stopNotify();
   console.log(`${signal} received, shutting down`);
   server.close();
   await Promise.all([stopQueue(), linkedin.stop(), whatsapp.stop()]);

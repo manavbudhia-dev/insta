@@ -6,6 +6,7 @@
 import crypto from 'node:crypto';
 import express from 'express';
 import { db, getSetting, log, setSetting } from './db.js';
+import { loginEmails, parseEmails, setLoginEmails } from './login.js';
 
 export const APPS = ['dm', 'scheduler', 'linkedin', 'whatsapp'] as const;
 export type AppId = (typeof APPS)[number];
@@ -67,7 +68,8 @@ export function controlRouter(status: () => Record<string, unknown>) {
     next();
   });
   r.use(express.json({ limit: '16kb' }));
-  r.get('/status', (_req, res) => void res.json({ ...appsView(), ...status() }));
+  const requests = () => { try { return JSON.parse(getSetting('unlock_requests', '{}')); } catch { return {}; } };
+  r.get('/status', (_req, res) => void res.json({ ...appsView(), ...status(), loginEmails: loginEmails(), unlockRequests: requests() }));
   r.put('/apps', (req, res) => {
     const b = req.body ?? {};
     if (b.apps && typeof b.apps === 'object') {
@@ -75,6 +77,10 @@ export function controlRouter(status: () => Record<string, unknown>) {
       for (const a of APPS) if (typeof b.apps[a] === 'boolean') cur[a] = b.apps[a];
       const before = getSetting('apps_enabled');
       setSetting('apps_enabled', JSON.stringify(cur));
+      // A request for a tool that is now on has been answered.
+      const reqs = requests();
+      for (const a of APPS) if (cur[a]) delete reqs[a];
+      setSetting('unlock_requests', JSON.stringify(reqs));
       if (before !== JSON.stringify(cur)) {
         log('info', `Apps changed by the owner: ${APPS.map((a) => `${APP_NAMES[a]} ${cur[a] ? 'on' : 'off'}`).join(', ')}`);
       }
@@ -82,7 +88,8 @@ export function controlRouter(status: () => Record<string, unknown>) {
     if (b.upsell && typeof b.upsell === 'object') {
       setSetting('apps_upsell', JSON.stringify({ message: String(b.upsell.message ?? '').slice(0, 500), contact: String(b.upsell.contact ?? '').slice(0, 200) }));
     }
-    res.json(appsView());
+    if (b.loginEmails !== undefined) setLoginEmails(parseEmails(b.loginEmails));
+    res.json({ ...appsView(), loginEmails: loginEmails(), unlockRequests: requests() });
   });
   return r;
 }

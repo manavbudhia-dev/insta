@@ -32,6 +32,7 @@
   }
 
   let apps = ['dm', 'scheduler', 'linkedin', 'whatsapp'];
+  let emailReady = false;
   function row(c) {
     const meta = c.online
       ? [c.account?.instagram ? `Instagram @${c.account.instagram}` : `Instagram @${c.ig} · not connected yet`, c.account?.whatsapp ? `WhatsApp ${c.account.whatsapp}` : '', ago(c.lastActivityAt)].filter(Boolean)
@@ -41,13 +42,19 @@
       <div class="cl-name"><b>${esc(c.name)}</b> ${c.online ? (allOff ? '<span class="pill warn">Everything off</span>' : '<span class="pill ok">Online</span>') : '<span class="pill bad">Offline</span>'}
         <div><a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.url.replace(/^https?:\/\//, ''))}</a></div>
         <div class="meta">${meta.map((m) => `<span>${esc(m)}</span>`).join('')}</div></div>
-      <div class="cl-toggles">${apps.map((a) => `<label class="tg${c.apps?.[a] ? ' on' : ''}"><span class="sw"><input type="checkbox" data-app="${a}" ${c.apps?.[a] ? 'checked' : ''} ${c.online ? '' : 'disabled'} aria-label="${esc(NAMES[a])} for ${esc(c.name)}"><i></i></span><span class="t">${esc(NAMES[a])}</span></label>`).join('')}</div>
+      <div class="cl-toggles">${apps.map((a) => `<label class="tg${c.apps?.[a] ? ' on' : ''}${c.unlockRequests?.[a] && !c.apps?.[a] ? ' req' : ''}" ${c.unlockRequests?.[a] && !c.apps?.[a] ? 'title="The client asked to unlock this"' : ''}><span class="sw"><input type="checkbox" data-app="${a}" ${c.apps?.[a] ? 'checked' : ''} ${c.online ? '' : 'disabled'} aria-label="${esc(NAMES[a])} for ${esc(c.name)}"><i></i></span><span class="t">${esc(NAMES[a])}</span>${c.unlockRequests?.[a] && !c.apps?.[a] ? '<span class="req-dot" aria-label="Requested">!</span>' : ''}</label>`).join('')}</div>
+      ${c.online ? `<form class="cl-mail" data-mail>
+        <input type="text" name="emails" value="${esc((c.loginEmails || []).join(', '))}" placeholder="client@gmail.com" aria-label="Login emails for ${esc(c.name)}">
+        <button class="btn small" type="submit">Save email</button>
+        <button class="btn small" type="button" data-welcome ${emailReady && (c.loginEmails || []).length ? '' : 'disabled'} title="${emailReady ? 'Dashboard link + how to sign in with Google or an email link' : 'Set RESEND_API_KEY and EMAIL_FROM in .env'}">Send welcome email</button>
+      </form>` : ''}
     </div>`;
   }
 
   async function load() {
     const d = await api('/');
     apps = d.apps;
+    emailReady = d.emailReady;
     const f = $('#upsell');
     if (document.activeElement?.form !== f) { f.message.value = d.upsell.message || ''; f.contact.value = d.upsell.contact || ''; }
     $('#list').innerHTML = d.clients.length
@@ -64,6 +71,7 @@
     try {
       await api('/' + encodeURIComponent(name), { method: 'PUT', body: { apps: { [input.dataset.app]: input.checked } } });
       input.closest('.tg').classList.toggle('on', input.checked);
+      if (input.checked) { input.closest('.tg').classList.remove('req'); input.closest('.tg').querySelector('.req-dot')?.remove(); }
       toast(`${NAMES[input.dataset.app]} ${input.checked ? 'unlocked' : 'locked'} for ${name}`);
     } catch (err) {
       input.checked = !input.checked;
@@ -71,6 +79,27 @@
     } finally {
       input.disabled = false;
     }
+  });
+  $('#list').addEventListener('submit', async (e) => {
+    const f = e.target.closest('[data-mail]');
+    if (!f) return;
+    e.preventDefault();
+    const name = f.closest('[data-name]').dataset.name;
+    try {
+      const r = await api('/' + encodeURIComponent(name), { method: 'PUT', body: { loginEmails: f.emails.value } });
+      f.emails.value = (r.loginEmails || []).join(', ');
+      f.querySelector('[data-welcome]').disabled = !emailReady || !(r.loginEmails || []).length;
+      toast(`Saved. ${name} can sign in with ${(r.loginEmails || []).length ? (r.loginEmails || []).join(', ') : 'the password only'}`);
+    } catch (err) { toast(err.message, true); }
+  });
+  $('#list').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-welcome]');
+    if (!b) return;
+    const name = b.closest('[data-name]').dataset.name;
+    b.disabled = true;
+    try { const r = await api(`/${encodeURIComponent(name)}/welcome`, { method: 'POST' }); toast(`Welcome email sent to ${r.to.join(', ')}`); }
+    catch (err) { toast(err.message, true); }
+    finally { b.disabled = false; }
   });
   $('#upsell').onsubmit = async (e) => {
     e.preventDefault();

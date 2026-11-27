@@ -327,7 +327,41 @@
   }
 
   // ---------- login ----------
-  function showLogin() { $('#hub').hidden = true; $('#login').hidden = false; }
+  let loginOpts = { google: false, emailLink: false };
+  function showLogin() {
+    $('#hub').hidden = true;
+    $('#login').hidden = false;
+    $('#google-btn').hidden = !loginOpts.google;
+    $('#or-line').hidden = !loginOpts.google;
+    $('#email-toggle').hidden = !loginOpts.emailLink;
+    // Google / email-link sign-in reports problems back here as ?login_error=…
+    const q = new URLSearchParams(location.search);
+    const err = q.get('login_error');
+    if (err) {
+      $('#login-flash').textContent = err;
+      $('#login-flash').hidden = false;
+      q.delete('login_error');
+      history.replaceState(null, '', location.pathname + (q.toString() ? `?${q}` : '') + location.hash);
+    }
+    // Keep ?next= through Google sign-in: it comes back to "/".
+    const next = q.get('next');
+    if (next) try { sessionStorage.setItem('next', next); } catch { /* private mode */ }
+  }
+  $('#email-toggle').onclick = () => { $('#login-form').hidden = true; $('#email-form').hidden = false; $('#email-form').email.focus(); };
+  $('#password-toggle').onclick = () => { $('#email-form').hidden = true; $('#login-form').hidden = false; };
+  $('#email-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = $('#email-msg');
+    const btn = e.target.querySelector('button[type=submit]');
+    btn.disabled = true;
+    try {
+      const r = await fetch('/api/login/email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: e.target.email.value }) });
+      const j = await r.json().catch(() => ({}));
+      msg.textContent = r.ok ? j.message : j.error || 'Could not send the link';
+      msg.className = r.ok ? 'muted small' : 'error';
+      msg.hidden = false;
+    } finally { btn.disabled = false; }
+  });
   $('#login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const err = $('#login-error');
@@ -477,9 +511,11 @@
 
   async function start() {
     const s = await safe(get('/api/session'));
+    if (s) loginOpts = { google: !!s.google, emailLink: !!s.emailLink };
     if (!s?.loggedIn) return showLogin();
     // Sent here to sign in from another page (e.g. the LinkedIn login): go back once signed in. Same-site paths only.
-    const next = new URLSearchParams(location.search).get('next');
+    let next = new URLSearchParams(location.search).get('next');
+    if (!next) try { next = sessionStorage.getItem('next'); sessionStorage.removeItem('next'); } catch { /* private mode */ }
     if (next && /^\/(dm|scheduler|linkedin|whatsapp|locked|clients)[\w./?=&#-]*$/.test(next)) return location.replace(next);
     appsInfo = (await safe(get('/api/apps'))) || appsInfo;
     $('#clients-link').hidden = !appsInfo.clients;

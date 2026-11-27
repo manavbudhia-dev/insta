@@ -216,6 +216,48 @@ each tool: Instagram DMs, Instagram Scheduler, LinkedIn and WhatsApp. A switch t
   Meta app. New clients also get your LinkedIn app and Anthropic key from `.env` (they can set their own in LinkedIn
   settings); add `https://<client>.<domain>/linkedin/auth/linkedin/callback` to the LinkedIn app's redirect URLs.
 
+### Sign in with Google or an email link, and emails (Resend)
+
+The password keeps working; Google and a one-time email link are added next to it. Only addresses on an instance's
+**login list** (home page → **Account**) can use them; the same list gets that instance's emails.
+
+**Resend (email)**: create an API key at resend.com and verify your domain there, then in `.env`:
+
+```
+RESEND_API_KEY=re_...
+EMAIL_FROM=Autopilot <noreply@zealcoder.in>
+OWNER_EMAIL=you@gmail.com          # your login on the main site, and where unlock requests go
+```
+
+That turns on:
+
+- **Email sign-in link**: "Email me a sign-in link" on the login page (15 minutes, works once, opens a confirm button
+  so mail scanners can't use it up).
+- **Problem alerts**: failed posts and replies, rejected tokens, expiring Instagram/LinkedIn connections. They're
+  batched, at most one email an hour, and can be turned off under Account.
+- **Daily summary** (off by default, Account): yesterday's DMs, replies, posts and WhatsApp messages, sent after
+  `SUMMARY_HOUR` (9) in `SUMMARY_TZ` (Asia/Kolkata).
+- **Unlock requests**: a client taps **Request unlock** on a locked tool. You get an email (reply goes to the
+  client) and a yellow **!** on that tool on the Clients page.
+- **Welcome email**: on the Clients page, set the client's email and click **Send welcome email**. It contains their
+  dashboard link and tells them to sign in with Google or an email link. No password is sent by email.
+
+**Google sign-in**: in Google Cloud console, create an OAuth client (Web application) with **one** redirect URI,
+`https://insta.zealcoder.in/auth/google/callback`, then in `.env`:
+
+```
+GOOGLE_CLIENT_ID=...apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-...
+```
+
+Client instances sign in with Google *through the main site*. The main site talks to Google and hands the client
+instance a two-minute assertion signed with that client's control key, so a new client never needs a new redirect
+URI. Each client instance still checks its own login list.
+
+**Clients**: `scripts/client.sh add <name> <instagram> <email>` puts the email on the client's login list.
+`scripts/client.sh sync` copies `RESEND_API_KEY`, `EMAIL_FROM`, `OWNER_EMAIL` and Google sign-in to every client, so
+run it after changing them.
+
 ### One-click n8n setup
 
 Settings → **One-click n8n setup** builds the n8n side for you: paste the n8n address, an n8n API key and a Google Sheet

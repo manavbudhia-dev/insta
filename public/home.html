@@ -25,18 +25,30 @@
     <form id="login-form" class="panel login-card">
       <div class="brand"><span class="logo" data-logo></span>Autopilot</div>
       <p class="muted">Sign in to your social media workspace.</p>
+      <p class="error" id="login-flash" hidden></p>
+      <a class="btn google" id="google-btn" href="/auth/google" hidden><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5a5.6 5.6 0 0 1-2.4 3.6v3h3.9c2.3-2.1 3.5-5.2 3.5-8.8z"/><path fill="#34A853" d="M12 24c3.2 0 6-1.1 7.9-2.9l-3.9-3c-1.1.7-2.4 1.2-4 1.2-3.1 0-5.7-2.1-6.6-4.9H1.4v3.1A12 12 0 0 0 12 24z"/><path fill="#FBBC05" d="M5.4 14.4a7.2 7.2 0 0 1 0-4.7V6.6h-4a12 12 0 0 0 0 10.9z"/><path fill="#EA4335" d="M12 4.8c1.7 0 3.3.6 4.5 1.8l3.4-3.4A12 12 0 0 0 1.4 6.6l4 3.1C6.3 6.9 8.9 4.8 12 4.8z"/></svg>Continue with Google</a>
+      <div class="or" id="or-line" hidden><span>or</span></div>
       <label>Password
         <input type="password" name="password" autocomplete="current-password" required autofocus>
       </label>
       <p class="error" id="login-error" hidden></p>
       <button class="btn primary" type="submit">Sign in</button>
+      <button class="linkish" id="email-toggle" type="button" hidden>Email me a sign-in link instead</button>
+    </form>
+    <form id="email-form" class="panel login-card" hidden>
+      <div class="brand"><span class="logo" data-logo></span>Autopilot</div>
+      <p class="muted">Enter your email and we'll send you a one-time sign-in link.</p>
+      <label>Email<input type="email" name="email" autocomplete="email" required></label>
+      <p class="muted small" id="email-msg" hidden></p>
+      <button class="btn primary" type="submit">Send sign-in link</button>
+      <button class="linkish" id="password-toggle" type="button">Use password instead</button>
     </form>
   </div>
 
   <div id="hub" class="hub" hidden>
     <header class="top">
       <div class="brand"><span class="logo" data-logo></span>Autopilot</div>
-      <div class="top-acts"><a class="btn ghost" id="clients-link" href="/clients" hidden>Clients</a><button class="btn ghost" id="signout" type="button">Sign out</button></div>
+      <div class="top-acts"><a class="btn ghost" id="clients-link" href="/clients" hidden>Clients</a><a class="btn ghost" href="/account">Account</a><button class="btn ghost" id="signout" type="button">Sign out</button></div>
     </header>
 
     <section class="hello">

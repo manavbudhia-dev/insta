@@ -16,6 +16,7 @@ function setup() {
   fs.writeFileSync(path.join(dir, '.env'), [
     'DOMAIN=insta.zealcoder.in', 'BASE_URL=https://insta.zealcoder.in', 'META_APP_ID=123', 'META_APP_SECRET=s3cret',
     'META_CONFIG_ID=CFG', 'WEBHOOK_VERIFY_TOKEN=vt', 'GRAPH_VERSION=v27.0', 'ADMIN_PASSWORD=main-pass-123', 'LINKEDIN_CLIENT_ID=li-id-1',
+    'RESEND_API_KEY=re_test_123456789abcdef', 'EMAIL_FROM=Autopilot <noreply@zealcoder.in>', 'OWNER_EMAIL=me@zealcoder.in', 'GOOGLE_CLIENT_ID=gid',
   ].join('\n') + '\n');
   const run = (...args: string[]) => execFileSync('bash', [path.join(dir, 'scripts/client.sh'), ...args, '--no-start'], { cwd: dir, encoding: 'utf8' });
   return { dir, run };
@@ -24,7 +25,9 @@ function setup() {
 test('client.sh add / list / password / remove', () => {
   const { dir, run } = setup();
   try {
-    const out = run('add', 'kalyanakuri', '@kalyanakuri.in');
+    assert.throws(() => run('add', 'x1', 'ig', 'not-an-email'), /not an email/);
+    const out = run('add', 'kalyanakuri', '@kalyanakuri.in', 'Owner@Gmail.com');
+    assert.match(out, /Login\s+: owner@gmail\.com/);
     assert.match(out, /https:\/\/kalyanakuri\.zealcoder\.in/);
     const env = fs.readFileSync(path.join(dir, 'clients/kalyanakuri/.env'), 'utf8');
     assert.match(env, /^BASE_URL=https:\/\/kalyanakuri\.zealcoder\.in$/m);
@@ -47,6 +50,12 @@ test('client.sh add / list / password / remove', () => {
     // Control key for the Clients page, LinkedIn app copied, and the control API closed to the internet.
     const secret = /^CONTROL_SECRET=([A-Za-z0-9]{48})$/m.exec(env)![1];
     assert.match(env, /^LINKEDIN_CLIENT_ID=li-id-1$/m);
+    assert.match(env, /^LOGIN_EMAILS=owner@gmail\.com$/m);
+    assert.match(env, /^RESEND_API_KEY=re_test_123456789abcdef$/m);
+    assert.match(env, /^EMAIL_FROM=Autopilot <noreply@zealcoder\.in>$/m);
+    assert.match(env, /^OWNER_EMAIL=me@zealcoder\.in$/m);
+    assert.match(env, /^GOOGLE_AUTH_VIA=https:\/\/insta\.zealcoder\.in$/m, 'clients sign in with Google through the main site');
+    assert.doesNotMatch(env, /GOOGLE_CLIENT_ID/, 'the Google app itself stays on the main instance');
     assert.doesNotMatch(env, /LINKEDIN_CLIENT_SECRET|ANTHROPIC_API_KEY/, 'only keys that are set are copied');
     assert.match(fs.readFileSync(path.join(dir, 'clients/shared/caddy/client-kalyanakuri.caddy'), 'utf8'), /respond \/internal\/\* 404\n\treverse_proxy/);
     assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, 'clients/shared/clients.json'), 'utf8')), [
@@ -59,6 +68,14 @@ test('client.sh add / list / password / remove', () => {
     fs.writeFileSync(benv, fs.readFileSync(benv, 'utf8').replace(/^CONTROL_SECRET=.*\n/m, ''));
     run('sync');
     assert.match(fs.readFileSync(benv, 'utf8'), /^CONTROL_SECRET=[A-Za-z0-9]{48}$/m);
+    // Changing the main .env and syncing updates every client; removing a key removes it there too.
+    fs.writeFileSync(path.join(dir, '.env'), fs.readFileSync(path.join(dir, '.env'), 'utf8').replace('OWNER_EMAIL=me@zealcoder.in', 'OWNER_EMAIL=new@zealcoder.in').replace(/^GOOGLE_CLIENT_ID=.*\n/m, ''));
+    run('sync');
+    const synced = fs.readFileSync(benv, 'utf8');
+    assert.match(synced, /^OWNER_EMAIL=new@zealcoder\.in$/m);
+    assert.equal((synced.match(/^OWNER_EMAIL=/gm) || []).length, 1);
+    assert.doesNotMatch(synced, /GOOGLE_AUTH_VIA/);
+    assert.equal(fs.statSync(benv).mode & 0o077, 0, 'still private after sync');
     assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'clients/shared/clients.json'), 'utf8')).length, 2);
     assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, 'clients/shared/forward.json'), 'utf8')), ['http://client-bakery:3000', 'http://client-kalyanakuri:3000']);
     assert.match(run('list'), /bakery\s+https:\/\/bakery\.zealcoder\.in\s+@sweetbakes/);

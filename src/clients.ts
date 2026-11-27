@@ -5,8 +5,9 @@
  */
 import fs from 'node:fs';
 import express from 'express';
-import { APPS, managed, type AppId } from './apps.js';
+import { APP_NAMES, APPS, managed, type AppId } from './apps.js';
 import { getSetting, log, setSetting } from './db.js';
+import { emailReady, esc, layout, ownerEmail, sendEmail } from './email.js';
 
 interface Client { name: string; url: string; internal: string; ig: string; secret: string }
 
@@ -65,7 +66,7 @@ clientsRouter.use((_req, res, next) => (clientsAvailable() ? next() : void res.s
 clientsRouter.get('/', async (_req, res) => {
   const list = clients();
   const rows = await Promise.all(list.map((c) => call(c, 'GET', '/status').then((s) => view(c, s), (e) => offline(c, e))));
-  res.json({ clients: rows, upsell: ownerUpsell(), apps: APPS });
+  res.json({ clients: rows, upsell: ownerUpsell(), apps: APPS, emailReady: emailReady() });
 });
 
 clientsRouter.put('/upsell', async (req, res) => {
@@ -80,11 +81,49 @@ clientsRouter.put('/:name', async (req, res) => {
   if (!c) return void res.status(404).json({ error: 'No such client' });
   const apps: Partial<Record<AppId, boolean>> = {};
   for (const a of APPS) if (typeof req.body?.apps?.[a] === 'boolean') apps[a] = req.body.apps[a];
+  const body: Record<string, unknown> = { apps, upsell: ownerUpsell() };
+  if (req.body?.loginEmails !== undefined) body.loginEmails = req.body.loginEmails;
   try {
-    const s = await call(c, 'PUT', '/apps', { apps, upsell: ownerUpsell() });
-    log('info', `Client ${c.name}: ${Object.entries(apps).map(([a, on]) => `${a} ${on ? 'on' : 'off'}`).join(', ')}`);
+    const s = await call(c, 'PUT', '/apps', body);
+    if (Object.keys(apps).length) log('info', `Client ${c.name}: ${Object.entries(apps).map(([a, on]) => `${a} ${on ? 'on' : 'off'}`).join(', ')}`);
     res.json(view(c, s));
   } catch (e) {
     res.status(502).json({ error: `Could not reach ${c.name}: ${(e as Error).message}` });
   }
+});
+
+/** Welcome email to the client's login addresses: where their dashboard is and how to sign in (no password by email). */
+clientsRouter.post('/:name/welcome', async (req, res) => {
+  const c = clients().find((x) => x.name === req.params.name);
+  if (!c) return void res.status(404).json({ error: 'No such client' });
+  if (!emailReady()) return void res.status(400).json({ error: 'Email is not set up: add RESEND_API_KEY and EMAIL_FROM to .env' });
+  let s: any;
+  try {
+    s = await call(c, 'GET', '/status');
+  } catch (e) {
+    return void res.status(502).json({ error: `Could not reach ${c.name}: ${(e as Error).message}` });
+  }
+  const to: string[] = s.loginEmails ?? [];
+  if (!to.length) return void res.status(400).json({ error: 'Add the client\'s email first' });
+  const tools = APPS.filter((a) => s.apps?.[a]).map((a) => APP_NAMES[a]);
+  const host = c.url.replace(/^https?:\/\//, '');
+  const r = await sendEmail({
+    to, replyTo: ownerEmail() || undefined,
+    subject: 'Your Autopilot dashboard is ready',
+    text: `Your dashboard is ready: ${c.url}\n\nSign in with Google using this email address, or ask for a sign-in link on the login page.\n${tools.length ? `\nIncluded: ${tools.join(', ')}` : ''}\n\nFirst step: connect your Instagram account on the DM Automation page.`,
+    html: layout({
+      title: 'Your Autopilot dashboard is ready',
+      rows: [
+        `Your dashboard lives at <b>${esc(host)}</b>.`,
+        `Sign in with <b>Google</b> using this email address, or enter it on the login page to get a one-time sign-in link. No password needed.`,
+        ...(tools.length ? [`Included in your plan: ${tools.map((t) => `<b>${esc(t)}</b>`).join(', ')}.`] : []),
+        'First step: connect your Instagram account from the dashboard.',
+      ],
+      button: { label: 'Open my dashboard', url: c.url },
+      footer: ownerEmail() ? `Questions? Reply to this email.` : undefined,
+    }),
+  });
+  if (!r.ok) return void res.status(502).json({ error: r.error });
+  log('info', `Welcome email sent to ${c.name} (${to.join(', ')})`);
+  res.json({ ok: true, to });
 });
