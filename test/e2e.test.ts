@@ -487,3 +487,75 @@ test('n8n webhook: signed events for DMs, comments and replies; settings and tes
     hook.close();
   }
 });
+
+test('one-click n8n setup: creates, publishes and connects the workflow; a second run updates it', async () => {
+  const seen: { method: string; path: string; key?: string; body: any }[] = [];
+  const workflows: Record<string, any> = {};
+  let creds: any[] = [];
+  const n8n = http.createServer((req, res) => {
+    let raw = '';
+    req.on('data', (c) => (raw += c));
+    req.on('end', () => {
+      const url = new URL(req.url!, 'http://x');
+      const body = raw ? JSON.parse(raw) : null;
+      seen.push({ method: req.method!, path: url.pathname, key: req.headers['x-n8n-api-key'] as string, body });
+      const send = (code: number, json: unknown) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(json)); };
+      if (url.pathname.startsWith('/webhook/')) return send(200, { message: 'Workflow was started' });
+      if (req.headers['x-n8n-api-key'] !== 'n8n-key-123') return send(401, { message: 'unauthorized' });
+      if (url.pathname === '/api/v1/workflows' && req.method === 'GET') return send(200, { data: Object.values(workflows) });
+      if (url.pathname === '/api/v1/credentials') return send(200, { data: creds, nextCursor: null });
+      if (url.pathname === '/api/v1/workflows' && req.method === 'POST') { const id = 'wf' + (Object.keys(workflows).length + 1); workflows[id] = { ...body, id }; return send(200, workflows[id]); }
+      const m = /^\/api\/v1\/workflows\/([^/]+)(\/activate)?$/.exec(url.pathname);
+      if (m && workflows[m[1]]) {
+        if (m[2]) { workflows[m[1]].active = true; return send(200, workflows[m[1]]); }
+        if (req.method === 'PUT') { workflows[m[1]] = { ...body, id: m[1] }; return send(200, workflows[m[1]]); }
+      }
+      send(404, { message: 'not found' });
+    });
+  });
+  await new Promise<void>((r) => n8n.listen(34804, r));
+  const base = 'http://127.0.0.1:34804';
+  const sheet = 'https://docs.google.com/spreadsheets/d/1y6Ksm1CVBpe2mTkLSrhOSD_jlca1M9yMhKTrh7x7jt8/edit';
+  try {
+    assert.equal((await call('POST', '/api/integrations/n8n/connect', { baseUrl: base, apiKey: 'wrong', sheetUrl: sheet })).status, 400);
+    assert.equal((await call('POST', '/api/integrations/n8n/connect', { baseUrl: base, apiKey: 'n8n-key-123', sheetUrl: 'not a sheet' })).status, 400);
+
+    // No Google credential yet: the workflow is created but not published, and the user is told what is missing.
+    const first = await call('POST', '/api/integrations/n8n/connect', { baseUrl: `${base}/home/workflows`, apiKey: 'n8n-key-123', sheetUrl: sheet });
+    assert.equal(first.status, 200);
+    assert.equal(first.json.needs, 'google');
+    assert.equal(first.json.baseUrl, base, 'address-bar paths are trimmed');
+    assert.equal(Object.keys(workflows).length, 1);
+    assert.ok(!workflows.wf1.active);
+
+    // After Google is connected in n8n, the same button updates the same workflow, publishes it and tests it.
+    creds = [{ id: 'cred9', name: 'Google Sheets account', type: 'googleSheetsOAuth2Api' }];
+    const second = await call('POST', '/api/integrations/n8n/connect', {});
+    assert.equal(second.status, 200, JSON.stringify(second.json));
+    assert.equal(second.json.published, true);
+    assert.equal(second.json.tested, true);
+    assert.equal(Object.keys(workflows).length, 1, 'updated, not duplicated');
+    const wf = workflows.wf1;
+    assert.equal(wf.active, true);
+    const sheetNode = wf.nodes.find((n: any) => n.type === 'n8n-nodes-base.googleSheets');
+    assert.deepEqual(sheetNode.credentials, { googleSheetsOAuth2Api: { id: 'cred9', name: 'Google Sheets account' } });
+    assert.equal(sheetNode.parameters.documentId.value, sheet);
+    const path = wf.nodes.find((n: any) => n.type === 'n8n-nodes-base.webhook').parameters.path;
+    assert.match(path, /^dm-autopilot-[0-9a-f]{16}$/);
+    assert.equal(second.json.webhookUrl, `${base}/webhook/${path}`);
+    assert.equal((await call('GET', '/api/integrations/webhook')).json.url, `${base}/webhook/${path}`);
+    assert.ok(seen.some((s) => s.path === `/webhook/${path}` && s.body.event === 'test'));
+    for (const k of ['id', 'active', 'tags']) assert.ok(!(k in seen.find((s) => s.method === 'POST' && s.path === '/api/v1/workflows')!.body), `${k} is read-only in n8n`);
+
+    const st = (await call('GET', '/api/integrations/n8n')).json;
+    assert.equal(st.hasApiKey, true);
+    assert.ok(!JSON.stringify(st).includes('n8n-key-123'), 'the API key is never sent back');
+    const logs = JSON.stringify((await call('GET', '/api/logs')).json);
+    assert.ok(!logs.includes('n8n-key-123'));
+
+    assert.equal((await call('POST', '/api/integrations/n8n/disconnect')).json.hasApiKey, false);
+  } finally {
+    n8n.close();
+    await call('PUT', '/api/integrations/webhook', { url: '' });
+  }
+});
