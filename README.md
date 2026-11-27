@@ -161,6 +161,23 @@ If you later obtain Advanced Access, comment webhooks start arriving and replies
 
 DM, story reply and story mention triggers arrive by webhook and are instant.
 
+### One-click n8n setup
+
+Settings → **One-click n8n setup** builds the n8n side for you: paste the n8n address, an n8n API key and a Google Sheet
+link, press **Connect n8n**. The app then, through n8n's public API:
+
+1. checks the key, and finds the Google Sheets credential in n8n (`GET /api/v1/credentials`);
+2. creates the **DM Autopilot → Leads Sheet** workflow (Webhook → only new DMs/comments → append to the `Leads` tab), or
+   updates the same one on later runs, with a random webhook path so nobody can guess the URL;
+3. publishes it (`POST /api/v1/workflows/{id}/activate`), saves its Production URL as the outgoing webhook and sends a
+   test event.
+
+Once per n8n, by hand: create the API key (n8n → Settings → n8n API) and connect Google (n8n → Credentials → Google
+Sheets OAuth2; self-hosted n8n needs an OAuth client from Google Cloud with the Sheets and Drive APIs enabled and
+`https://<your-n8n>/rest/oauth2-credential/callback` as redirect URI). If no Google credential exists yet, the workflow is
+created unpublished and the card says so; press **Update n8n setup** after connecting Google. The API key is stored
+encrypted and never sent back to the browser.
+
 ### Send events to n8n (outgoing webhook)
 
 DM Autopilot does the Instagram side (rules, flows, replies). To send leads on to Google Sheets, a CRM, WhatsApp or

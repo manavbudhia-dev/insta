@@ -1330,7 +1330,7 @@
 
   views.settings = async () => {
     const g = gen;
-    const [s, wh] = await Promise.all([api('/settings'), api('/integrations/webhook')]);
+    const [s, wh, nx] = await Promise.all([api('/settings'), api('/integrations/webhook'), api('/integrations/n8n')]);
     if (g !== gen) return;
     main.innerHTML = `
       <form class="card form" id="settings-form" style="max-width:660px">
@@ -1346,6 +1346,15 @@
         </div>
         <div class="row"><button class="btn primary">Save settings</button></div>
       </form>
+      <form class="card form" id="n8n-form" style="max-width:660px;margin-top:20px">
+        <h3 style="margin:0">One-click n8n setup</h3>
+        <p class="hint">Creates the <b>DM Autopilot → Leads Sheet</b> workflow in your n8n, publishes it and connects it here. Running it again updates the same workflow. Before the first run: in n8n create an API key (<b>Settings → n8n API</b>) and connect Google once (<b>Credentials → Google Sheets OAuth2</b>). The sheet needs a tab named <code>Leads</code> with headers Time | Event | Username | Name | IGSID | Text.</p>
+        <label>n8n address<input type="url" name="baseUrl" placeholder="https://n8n.example.com" value="${esc(nx.baseUrl)}"></label>
+        <label>n8n API key <span class="hint">${nx.hasApiKey ? 'Saved (encrypted). Leave empty to keep it.' : 'Stored encrypted.'}</span><input type="password" name="apiKey" autocomplete="off" placeholder="${nx.hasApiKey ? '••••••••' : 'eyJ…'}"></label>
+        <label>Google Sheet link<input type="url" name="sheetUrl" placeholder="https://docs.google.com/spreadsheets/d/…" value="${esc(nx.sheetUrl)}"></label>
+        ${nx.workflowId ? `<p class="hint">Connected workflow: <a href="${esc(nx.workflowUrl)}" target="_blank" rel="noopener">open in n8n</a>${nx.credential ? ` · Google: ${esc(nx.credential.name)}` : ' · <span style="color:var(--bad,#ef4444)">no Google Sheets credential in n8n yet</span>'}</p>` : ''}
+        <div class="row" style="gap:8px"><button class="btn primary" id="n8n-go">${nx.workflowId ? 'Update n8n setup' : 'Connect n8n'}</button>${nx.workflowId ? '<button type="button" class="btn" id="n8n-forget">Forget</button>' : ''}</div>
+      </form>
       <form class="card form" id="hook-form" style="max-width:660px;margin-top:20px">
         <h3 style="margin:0">Send events to n8n</h3>
         <p class="hint">Every new DM, comment and automated reply is POSTed as JSON to this URL, so n8n can save leads to Google Sheets, a CRM or WhatsApp. Use the <b>Production URL</b> of a Webhook node (method POST) and keep the n8n workflow active. Leave the URL empty to turn this off.</p>
@@ -1358,6 +1367,23 @@
         ${wh.last ? `<p class="hint">Last delivery: <code>${esc(wh.last.event)}</code> ${ago(wh.last.at)}, ${wh.last.ok ? `<span style="color:var(--ok,#22c55e)">delivered (HTTP ${esc(wh.last.status)})</span>` : `<span style="color:var(--bad,#ef4444)">failed: ${esc(wh.last.error)}</span>`}</p>` : ''}
         <div class="row" style="gap:8px"><button class="btn primary">Save webhook</button>${wh.url ? '<button type="button" class="btn" id="hook-test">Send test event</button>' : ''}</div>
       </form>`;
+    $('#n8n-form').onsubmit = run(async (e) => {
+      e.preventDefault();
+      const f = e.target;
+      const btn = $('#n8n-go');
+      btn.disabled = true; btn.textContent = 'Setting up…';
+      try {
+        const r = await api('/integrations/n8n/connect', { method: 'POST', body: { baseUrl: f.baseUrl.value.trim(), apiKey: f.apiKey.value.trim() || undefined, sheetUrl: f.sheetUrl.value.trim() } });
+        if (r.needs === 'google') toast('Workflow created. Connect Google Sheets once in n8n (Credentials), then press Update n8n setup.', true);
+        else toast(r.tested ? 'n8n connected: workflow published and test event delivered' : `Workflow published, but the test event failed: ${r.testError}`, !r.tested);
+      } finally { route(); }
+    });
+    const forget = $('#n8n-forget');
+    if (forget) forget.onclick = run(async () => {
+      if (!confirm('Forget the n8n API key and workflow link? The workflow in n8n stays as it is.')) return;
+      await api('/integrations/n8n/disconnect', { method: 'POST' });
+      route();
+    }, 'n8n setup forgotten');
     $('#hook-form').onsubmit = run(async (e) => {
       e.preventDefault();
       const f = e.target;

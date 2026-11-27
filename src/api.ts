@@ -13,6 +13,7 @@ import { accounts, connected, disconnect, ensureWebhooks, IgError, saveToken, se
 import { pollOnce } from './poller.js';
 import { enqueue, windowOpen } from './queue.js';
 import { deliverNow, HOOK_EVENTS, hookConfig, newSecret, saveHookConfig } from './outhook.js';
+import { connectN8n, disconnectN8n, n8nStatus, SetupError } from './n8nsetup.js';
 
 export const api = express.Router();
 
@@ -604,4 +605,20 @@ api.post('/integrations/webhook/test', h(async () => {
   });
   if (!r.ok) bad(`n8n did not accept the test event: ${r.error}`);
   return { ok: true, status: r.status };
+}));
+
+// ---------- one-click n8n setup ----------
+
+api.get('/integrations/n8n', h(() => n8nStatus()));
+api.post('/integrations/n8n/connect', h(async (req) => {
+  try {
+    return await connectN8n(req.body ?? {});
+  } catch (e) {
+    if (e instanceof SetupError) bad(e.message);
+    throw e;
+  }
+}));
+api.post('/integrations/n8n/disconnect', h(() => {
+  disconnectN8n();
+  return n8nStatus();
 }));
