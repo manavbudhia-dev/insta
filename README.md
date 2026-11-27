@@ -161,6 +161,40 @@ If you later obtain Advanced Access, comment webhooks start arriving and replies
 
 DM, story reply and story mention triggers arrive by webhook and are instant.
 
+### Send events to n8n (outgoing webhook)
+
+DM Autopilot does the Instagram side (rules, flows, replies). To send leads on to Google Sheets, a CRM, WhatsApp or
+anything else, let it tell n8n what happens:
+
+1. In n8n add a **Webhook** node: method `POST`, respond *Immediately*. Activate the workflow and copy its **Production URL**.
+2. In DM Autopilot → **Settings → Send events to n8n**, paste the URL, pick the events and **Save webhook**, then
+   **Send test event**. The card shows the last delivery and whether n8n accepted it.
+
+Events: `message.received` (DM, story reply or mention), `comment.received`, `reply.sent` (automated or manual) and
+`reply.failed`. Each is one JSON POST (Zapier and Make work the same way):
+
+```json
+{
+  "event": "message.received",
+  "delivery": "2f1c…",
+  "created_at": "2026-11-27T06:45:00.000Z",
+  "account": { "id": "1784…", "username": "myshop" },
+  "data": {
+    "kind": "dm", "text": "price please", "mid": "aWdf…", "attachments": [], "quick_reply": null, "first_message": true,
+    "contact": { "igsid": "1234…", "username": "asha", "name": "Asha Rao", "is_new": true }
+  }
+}
+```
+
+`comment.received` has `text`, `comment_id`, `media_id`, `parent_id` and `contact`. `reply.sent` / `reply.failed` have
+`kind` (`dm`, `private_reply`, `comment_reply`), `text`, `source` (`auto` or `manual`), `rule`, `flow`, `contact`, and
+`message_id` or `error`. In n8n the payload is under `body`, e.g. `{{ $json.body.data.contact.username }}`.
+
+Headers: `X-Autopilot-Event`, `X-Autopilot-Delivery` (same id on retries, use it to de-duplicate) and
+`X-Autopilot-Signature: sha256=<HMAC-SHA256 of the raw body with the signing secret>`. Delivery runs in the background
+and never slows replies; network errors and 5xx answers are retried after 5 s and 30 s, and a failure is logged in
+Activity at most once an hour.
+
 ---
 
 ## Calendar and Insights

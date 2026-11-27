@@ -12,6 +12,7 @@ import { automationMetrics, calendar, instagramMetrics } from './insights.js';
 import { accounts, connected, disconnect, ensureWebhooks, IgError, saveToken, selectAccount, webhookState } from './instagram.js';
 import { pollOnce } from './poller.js';
 import { enqueue, windowOpen } from './queue.js';
+import { deliverNow, HOOK_EVENTS, hookConfig, newSecret, saveHookConfig } from './outhook.js';
 
 export const api = express.Router();
 
@@ -574,4 +575,33 @@ api.put('/settings', h((req) => {
     setSetting(k, Math.floor(n));
   }
   log('info', 'Settings updated');
+}));
+
+// ---------- n8n / outgoing webhook ----------
+
+function hookView() {
+  const c = hookConfig();
+  let last = null;
+  try { last = JSON.parse(getSetting('outhook_last') || 'null'); } catch { /* ignore */ }
+  return { url: c.url, secret: c.secret, events: c.events, available: HOOK_EVENTS, last };
+}
+api.get('/integrations/webhook', h(() => hookView()));
+api.put('/integrations/webhook', h((req) => {
+  const err = saveHookConfig(req.body ?? {});
+  if (err) bad(err);
+  log('info', hookConfig().url ? 'n8n webhook saved' : 'n8n webhook turned off');
+  return hookView();
+}));
+api.post('/integrations/webhook/secret', h(() => {
+  newSecret();
+  log('info', 'n8n webhook signing secret regenerated');
+  return hookView();
+}));
+api.post('/integrations/webhook/test', h(async () => {
+  const r = await deliverNow('test', {
+    message: 'Test event from DM Autopilot. If you can read this in n8n, the connection works.',
+    contact: { igsid: '0000000000', username: 'test_user', name: 'Test User' },
+  });
+  if (!r.ok) bad(`n8n did not accept the test event: ${r.error}`);
+  return { ok: true, status: r.status };
 }));

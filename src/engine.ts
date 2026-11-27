@@ -2,6 +2,7 @@ import { db, firstTime, log, opt } from './db.js';
 import { getProfile, isOwnAccount, type IgError } from './instagram.js';
 import { flowCandidates, flowOnCooldown, resumeFromInbound, startRun } from './flows.js';
 import { enqueue, sendsInFlight } from './queue.js';
+import { emit, hookActive } from './outhook.js';
 
 export type TriggerType = 'dm' | 'comment' | 'story_reply' | 'story_mention' | 'welcome';
 
@@ -246,10 +247,20 @@ export async function handleMessaging(ev: MessagingEvent): Promise<void> {
     meta: attachmentTypes.length ? { attachments: msg?.attachments } : undefined,
   });
 
+  // Look the sender up first when n8n is listening, so the event carries their username and name.
+  let contact = hookActive() ? await ensureProfile(up.contact) : up.contact;
+  emit('message.received', {
+    kind, text, mid: mid ?? null,
+    attachments: attachmentTypes,
+    quick_reply: msg?.quick_reply?.payload ?? ev.postback?.payload ?? null,
+    first_message: !priorInbound,
+    contact: { igsid: senderId, username: contact.username, name: contact.name, is_new: up.isNew },
+  });
+
   if (!opt('automation_enabled')) return;
   if (up.contact.paused_until > now) return;
 
-  const contact = await ensureProfile(up.contact);
+  contact = await ensureProfile(contact);
   // A flow that is waiting for this person (or a tapped flow button) gets the message first.
   if (resumeFromInbound(senderId, text, msg?.quick_reply?.payload ?? ev.postback?.payload)) return;
   const rules = [...activeRules(), ...flowCandidates()];
@@ -322,6 +333,10 @@ export function handleComment(c: CommentEvent): void {
   const contactId = fromId ?? `user:${username ?? 'unknown'}`;
   upsertContact(contactId, { username });
   recordMessage({ igsid: contactId, direction: 'in', kind: 'comment', text: c.text ?? '', mid: `comment:${c.id}`, meta: { mediaId, commentId: c.id } });
+  emit('comment.received', {
+    text: c.text ?? '', comment_id: c.id, media_id: mediaId ?? null, parent_id: c.parent_id ?? null,
+    contact: { igsid: fromId ?? null, username: username ?? null },
+  });
 
   if (!opt('automation_enabled')) return;
   const rule = pickRule([...activeRules(), ...flowCandidates()], 'comment', c.text ?? '', mediaId);

@@ -2,6 +2,7 @@ import { config } from './config.js';
 import { db, log, opt, redact, setSetting } from './db.js';
 import { moveRuns } from './flows.js';
 import { connected, IgError, replyToComment, sendDm, sendPrivateReply } from './instagram.js';
+import { emit } from './outhook.js';
 
 export const WINDOW_MS = 24 * 3600_000;
 const MAX_ATTEMPTS = 5;
@@ -64,6 +65,20 @@ export function recoverInterrupted(): void {
   if (r.changes) log('warn', `${r.changes} message(s) were interrupted mid-send and marked failed (not retried, to avoid duplicates)`);
 }
 
+/** What n8n gets told about a send: who it went to and which rule or flow produced it. */
+function hookData(job: Job, igsid: string | null) {
+  const who = igsid ? (db.prepare('SELECT username, name FROM contacts WHERE igsid = ?').get(igsid) as { username: string | null; name: string | null } | undefined) : undefined;
+  const rule = job.rule_id ? (db.prepare('SELECT name FROM rules WHERE id = ?').get(job.rule_id) as { name: string } | undefined) : undefined;
+  const flow = job.flow_id ? (db.prepare('SELECT name FROM flows WHERE id = ?').get(job.flow_id) as { name: string } | undefined) : undefined;
+  return {
+    kind: job.kind, text: job.preview, source: job.source,
+    comment_id: job.kind === 'dm' ? null : job.target,
+    rule: job.rule_id ? { id: job.rule_id, name: rule?.name ?? null } : null,
+    flow: job.flow_id ? { id: job.flow_id, name: flow?.name ?? null } : null,
+    contact: { igsid, username: who?.username ?? null, name: who?.name ?? null },
+  };
+}
+
 async function process(job: Job): Promise<void> {
   if (job.kind === 'dm' && !windowOpen(job.target)) {
     finish.run('skipped', 'Outside the 24-hour messaging window', null, job.id);
@@ -103,6 +118,7 @@ async function process(job: Job): Promise<void> {
         'INSERT OR IGNORE INTO messages (igsid, direction, kind, text, mid, rule_id, flow_id, source, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       ).run(igsid, 'out', job.kind, job.preview, res.message_id ?? res.id ?? null, job.rule_id, job.flow_id, job.source, now);
     }
+    emit('reply.sent', { ...hookData(job, igsid ?? null), message_id: res.message_id ?? res.id ?? null });
   } catch (e) {
     const err = e as IgError;
     err.message = redact(err.message);
@@ -119,6 +135,7 @@ async function process(job: Job): Promise<void> {
     } else {
       finish.run('failed', err.message, null, job.id);
       log('error', `Send #${job.id} (${job.kind}) failed: ${err.message}`);
+      emit('reply.failed', { ...hookData(job, job.kind === 'dm' ? job.target : job.igsid), error: err.message });
     }
   }
 }
