@@ -8,6 +8,8 @@ services:
     environment:
       # Meta webhooks for client accounts arrive here and are passed on to the client instances listed in this file.
       FORWARD_WEBHOOKS_FILE: /clients/forward.json
+      # The Clients page (switch each client's tools) reads the client list and control keys from here.
+      CLIENTS_FILE: /clients/clients.json
     volumes:
       - appdata:/data
       - ./clients/shared:/clients:ro

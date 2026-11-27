@@ -1,3 +1,4 @@
+import { appEnabled } from './apps.js';
 /**
  * Visual automation flows.
  *
@@ -584,7 +585,7 @@ export function tickFlows(): void {
 export function startFlowTimer(): NodeJS.Timeout {
   const t = setInterval(() => {
     try {
-      tickFlows();
+      if (appEnabled('dm')) tickFlows();
     } catch (e) {
       log('error', `Flow timer error: ${(e as Error).message}`);
     }

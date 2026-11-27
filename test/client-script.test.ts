@@ -15,7 +15,7 @@ function setup() {
   fs.writeFileSync(path.join(dir, 'docker-compose.yml'), 'services: {}\n');
   fs.writeFileSync(path.join(dir, '.env'), [
     'DOMAIN=insta.zealcoder.in', 'BASE_URL=https://insta.zealcoder.in', 'META_APP_ID=123', 'META_APP_SECRET=s3cret',
-    'META_CONFIG_ID=CFG', 'WEBHOOK_VERIFY_TOKEN=vt', 'GRAPH_VERSION=v27.0', 'ADMIN_PASSWORD=main-pass-123',
+    'META_CONFIG_ID=CFG', 'WEBHOOK_VERIFY_TOKEN=vt', 'GRAPH_VERSION=v27.0', 'ADMIN_PASSWORD=main-pass-123', 'LINKEDIN_CLIENT_ID=li-id-1',
   ].join('\n') + '\n');
   const run = (...args: string[]) => execFileSync('bash', [path.join(dir, 'scripts/client.sh'), ...args, '--no-start'], { cwd: dir, encoding: 'utf8' });
   return { dir, run };
@@ -44,7 +44,22 @@ test('client.sh add / list / password / remove', () => {
     assert.match(fs.readFileSync(path.join(dir, 'clients/shared/caddy/client-kalyanakuri.caddy'), 'utf8'), /^kalyanakuri\.zealcoder\.in \{[\s\S]*reverse_proxy client-kalyanakuri:3000/);
     assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, 'clients/shared/forward.json'), 'utf8')), ['http://client-kalyanakuri:3000']);
 
+    // Control key for the Clients page, LinkedIn app copied, and the control API closed to the internet.
+    const secret = /^CONTROL_SECRET=([A-Za-z0-9]{48})$/m.exec(env)![1];
+    assert.match(env, /^LINKEDIN_CLIENT_ID=li-id-1$/m);
+    assert.doesNotMatch(env, /LINKEDIN_CLIENT_SECRET|ANTHROPIC_API_KEY/, 'only keys that are set are copied');
+    assert.match(fs.readFileSync(path.join(dir, 'clients/shared/caddy/client-kalyanakuri.caddy'), 'utf8'), /respond \/internal\/\* 404\n\treverse_proxy/);
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, 'clients/shared/clients.json'), 'utf8')), [
+      { name: 'kalyanakuri', url: 'https://kalyanakuri.zealcoder.in', internal: 'http://client-kalyanakuri:3000', ig: 'kalyanakuri.in', secret },
+    ]);
+
     run('add', 'bakery', 'sweetbakes');
+    // A client made before the Clients page existed gets a control key on the next sync.
+    const benv = path.join(dir, 'clients/bakery/.env');
+    fs.writeFileSync(benv, fs.readFileSync(benv, 'utf8').replace(/^CONTROL_SECRET=.*\n/m, ''));
+    run('sync');
+    assert.match(fs.readFileSync(benv, 'utf8'), /^CONTROL_SECRET=[A-Za-z0-9]{48}$/m);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'clients/shared/clients.json'), 'utf8')).length, 2);
     assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, 'clients/shared/forward.json'), 'utf8')), ['http://client-bakery:3000', 'http://client-kalyanakuri:3000']);
     assert.match(run('list'), /bakery\s+https:\/\/bakery\.zealcoder\.in\s+@sweetbakes/);
     assert.equal(run('password', 'kalyanakuri').trim(), pw);

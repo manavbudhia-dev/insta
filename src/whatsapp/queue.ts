@@ -4,6 +4,7 @@
  */
 import { db, firstTime, redact } from '../db.js';
 import { cloud, WaError } from './cloud.js';
+import { appEnabled } from '../apps.js';
 import { emit } from './hook.js';
 import { configured, waLog, waOpt } from './store.js';
 
@@ -144,7 +145,7 @@ let draining: Promise<void> | null = null;
 let stopping = false;
 
 async function drain(): Promise<void> {
-  while (!stopping && configured()) {
+  while (!stopping && configured() && appEnabled('whatsapp')) {
     if (sentLastHour() >= waOpt('wa_hourly_limit')) {
       if (firstTime(`wa-hourly:${Math.floor(Date.now() / 3600_000)}`)) waLog('warn', 'Hourly send limit reached; the rest waits in the queue. Raise it in WhatsApp settings if your tier allows.');
       return;

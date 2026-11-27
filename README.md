@@ -196,6 +196,26 @@ How it fits together:
 - Generated files (`docker-compose.clients.yml`, `clients/`) stay on the server and out of git. The deploy workflow
   starts the client instances too, with the same image.
 
+### Choosing tools per client (Clients page)
+
+On your main dashboard, **Clients** (top right of the home page, at `/clients`) lists every client with a switch for
+each tool: Instagram DMs, Instagram Scheduler, LinkedIn and WhatsApp. A switch takes effect at once, without a restart.
+
+- A switched-off tool stays on the client's home page as **Locked**, with what it does and an **Unlock** button. The
+  message and contact on that page (a WhatsApp number opens a chat, an email opens a mail, or a link) are set once
+  at the top of the Clients page for all clients.
+- Locked means locked: its pages show the unlock screen, its API answers 403, and its background work (auto-replies,
+  publishing, broadcasts) pauses. Meta's webhooks keep getting a normal answer so the subscription stays healthy.
+- The client's own login cannot change this. The main instance talks to each client over the private Docker network
+  with a per-client control key that `scripts/client.sh` creates (`CONTROL_SECRET` in the client's `.env`, listed in
+  `clients/shared/clients.json`); Caddy answers `/internal/*` with 404, so it is never reachable from the internet.
+- Clients created before this existed get a control key with `scripts/client.sh sync`.
+- Creating and removing clients stays a server command (`scripts/client.sh add/remove`): doing it from the dashboard
+  would mean giving the web app control of Docker.
+- WhatsApp webhooks are passed on to client instances like Instagram's, so a client's WhatsApp number can live in your
+  Meta app. New clients also get your LinkedIn app and Anthropic key from `.env` (they can set their own in LinkedIn
+  settings); add `https://<client>.<domain>/linkedin/auth/linkedin/callback` to the LinkedIn app's redirect URLs.
+
 ### One-click n8n setup
 
 Settings → **One-click n8n setup** builds the n8n side for you: paste the n8n address, an n8n API key and a Google Sheet

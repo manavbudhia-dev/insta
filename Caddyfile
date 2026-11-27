@@ -6,6 +6,8 @@
 	request_body {
 		max_size 400MB
 	}
+	# Control API for client instances: private Docker network only.
+	respond /internal/* 404
 	reverse_proxy app:3000
 }
 

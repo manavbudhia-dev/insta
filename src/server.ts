@@ -3,10 +3,12 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { assertConfig, config } from './config.js';
 import { api } from './api.js';
+import { appEnabled, appsView, controlRouter, lastActivity, type AppId } from './apps.js';
+import { clientsAvailable, clientsRouter } from './clients.js';
 import { checkToken, endSession, isLoggedIn, login, logout, makeToken, requireLogin } from './auth.js';
 import { createLinkedInApp } from './linkedin/server.js';
 import { createWhatsAppApp } from './whatsapp/routes.js';
-import { db, log, redact } from './db.js';
+import { db, getSetting, log, redact } from './db.js';
 import { authorizeUrl, exchangeCode, sealStoredToken, startWebhookWatch } from './instagram.js';
 import { startFlowTimer } from './flows.js';
 import { startSnapshots } from './insights.js';
@@ -63,6 +65,22 @@ app.use('/media', express.static(path.join(config.dataDir, 'media'), {
   setHeaders: (res) => res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox"),
 }));
 
+// Client instances: the owner's main dashboard switches apps here over the private network (never via Caddy).
+app.use('/internal', controlRouter(() => ({
+  account: { instagram: getSetting('ig_username') || null, whatsapp: getSetting('wa_display_phone') || null },
+  lastActivityAt: lastActivity(),
+})));
+
+/** A switched-off app: its API answers 403 and its pages show what it does and how to unlock it. */
+const locked = (id: AppId, isApi: (req: express.Request) => boolean): express.RequestHandler => (req, res, next) => {
+  if (appEnabled(id)) return next();
+  if (isApi(req) || req.method !== 'GET') {
+    res.status(403).json({ error: 'This app is not part of your plan. Contact us to unlock it.', locked: id });
+    return;
+  }
+  res.redirect(302, `/locked?app=${id}`);
+};
+
 // Defence in depth on top of SameSite cookies: a state-changing request from another site is refused outright.
 const sameOrigin: express.RequestHandler = (req, res, next) => {
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
@@ -86,13 +104,16 @@ app.use('/api', sameOrigin);
 
 // LinkedIn post scheduler. Signed in to the dashboard = signed in there as its admin.
 // Mounted before the platform's JSON parser: its media upload streams the raw request body.
-const linkedin = createLinkedInApp({ isOwner: isLoggedIn, endOwnerSession: endSession });
+const linkedin = createLinkedInApp({ isOwner: isLoggedIn, endOwnerSession: endSession, enabled: () => appEnabled('linkedin') });
 app.use('/linkedin/api', sameOrigin);
+app.use('/linkedin', locked('linkedin', (req) => /^\/(api|auth)(\/|$)/.test(req.path)));
 app.use('/linkedin', linkedin.app);
 
 // WhatsApp automation (official Cloud API). Mounted before the JSON parser: its webhook verifies the raw body.
 const whatsapp = createWhatsAppApp({ isLoggedIn });
 app.use('/whatsapp/api', sameOrigin);
+// The webhook still answers Meta (and ignores events) while the app is off, so Meta does not disable it.
+app.use('/whatsapp', (req, res, next) => (req.path.startsWith('/webhook') ? next() : locked('whatsapp', (r) => r.path.startsWith('/api'))(req, res, next)));
 app.use('/whatsapp', whatsapp.app);
 
 app.use(express.json({ limit: '1mb' }));
@@ -100,6 +121,8 @@ app.use(express.json({ limit: '1mb' }));
 app.post('/api/login', login);
 app.post('/api/logout', logout);
 app.get('/api/session', (req, res) => void res.json({ loggedIn: isLoggedIn(req) }));
+app.get('/api/apps', requireLogin, (_req, res) => void res.json({ ...appsView(), clients: clientsAvailable() }));
+app.use('/api/clients', requireLogin, clientsRouter);
 
 // Instagram OAuth. The state is a signed, short-lived token minted only for a signed-in admin,
 // so the callback (a cross-site redirect that carries no session cookie) is still protected.
@@ -123,12 +146,23 @@ app.get('/auth/instagram/callback', async (req, res) => {
   }
 });
 
+// Instagram API routes belong to the DM app or the Scheduler; account, status and logs are shared by both.
+const DM_API = /^\/(overview|rules|flows|media|contacts|outbox|insights$|settings|integrations)(\/|$)/;
+const SCHED_API = /^\/(upload|posts|calendar)(\/|$)/;
+app.use('/api', requireLogin, (req, res, next) => {
+  if (DM_API.test(req.path)) return locked('dm', () => true)(req, res, next);
+  if (SCHED_API.test(req.path)) return locked('scheduler', () => true)(req, res, next);
+  next();
+});
 app.use('/api', requireLogin, api);
 app.use('/api', (_req, res) => void res.status(404).json({ error: 'Not found' }));
 
 // "/" is the launcher; the two Instagram mini apps share one page that switches by its path.
 app.get('/', (_req, res) => res.sendFile(path.join(publicDir, 'home.html')));
-app.get(['/dm', '/dm/', '/scheduler', '/scheduler/'], (_req, res) => res.sendFile(path.join(publicDir, 'index.html')));
+app.get(['/dm', '/dm/'], locked('dm', () => false), (_req, res) => res.sendFile(path.join(publicDir, 'index.html')));
+app.get(['/scheduler', '/scheduler/'], locked('scheduler', () => false), (_req, res) => res.sendFile(path.join(publicDir, 'index.html')));
+app.get('/locked', (_req, res) => res.sendFile(path.join(publicDir, 'locked.html')));
+app.get('/clients', (_req, res) => res.sendFile(path.join(publicDir, 'clients.html')));
 app.use(express.static(publicDir, { extensions: ['html'], index: false }));
 
 // Never leak stack traces or internals; oversized or malformed requests get a plain JSON answer.

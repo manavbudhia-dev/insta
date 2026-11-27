@@ -135,6 +135,7 @@
   }
 
   async function renderStudio() {
+    if (!on('linkedin')) return;
     const body = $('#studio-body');
     let accounts;
     try {
@@ -346,6 +347,25 @@
   };
 
   // ---------- hub ----------
+  // Which apps this workspace has. A client's owner switches them on the main dashboard; locked ones are shown as upgrades.
+  let appsInfo = { apps: { dm: true, scheduler: true, linkedin: true, whatsapp: true }, upsell: {}, clients: false };
+  const on = (id) => appsInfo.apps[id] !== false;
+  const PERKS = {
+    dm: ['Instant replies to DMs and comments', 'Comment-to-DM with links', 'Visual flows and inbox'],
+    scheduler: ['Plan posts, reels and stories', 'Calendar that publishes on time', 'Post insights'],
+    linkedin: ['Schedule posts for profiles and pages', 'AI-written drafts', 'Analytics'],
+    whatsapp: ['Auto-replies with buttons', 'Template broadcasts', 'Shared WhatsApp inbox'],
+  };
+  const lockedCard = (a) => `
+    <a class="app locked" href="/locked?app=${a.id}">
+      <div class="app-top">
+        <div class="app-ico ${a.cls}">${ic(a.icon)}</div>
+        <span class="pill warn lock">Locked</span>
+      </div>
+      <div><h3>${esc(a.name)}</h3><p>${esc(a.desc)}</p></div>
+      <ul class="perks">${(PERKS[a.id] || []).map((p) => `<li>${esc(p)}</li>`).join('')}</ul>
+      <div class="app-foot"><span class="note">Not in your plan yet</span><span class="open">Unlock ${ic('arrow')}</span></div>
+    </a>`;
   const card = (a) => `
     <a class="app" href="${a.href}">
       <div class="app-top">
@@ -361,10 +381,12 @@
     const hr = new Date().getHours();
     $('#hello').textContent = `${hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening'} 👋`;
     const tz = -new Date().getTimezoneOffset();
+    const when = (id, p) => (on(id) ? safe(get(p)) : Promise.resolve(null));
     const [shell, ov, igPosts, liPosts, liAcc, liStatus, wa] = await Promise.all([
-      safe(get('/api/shell')), safe(get(`/api/overview?days=7&tz=${tz}`)), safe(get('/api/posts')),
-      safe(get('/linkedin/api/posts')), safe(get('/linkedin/api/accounts')), safe(get('/linkedin/api/status')),
-      safe(get('/whatsapp/api/status')),
+      on('dm') || on('scheduler') ? safe(get('/api/shell')) : safe(get('/api/session')).then((s) => (s?.loggedIn ? {} : null)),
+      when('dm', `/api/overview?days=7&tz=${tz}`), when('scheduler', '/api/posts'),
+      when('linkedin', '/linkedin/api/posts'), when('linkedin', '/linkedin/api/accounts'), when('linkedin', '/linkedin/api/status'),
+      when('whatsapp', '/whatsapp/api/status'),
     ]);
     if (shell === null && ov === null && igPosts === null) {
       // The session ended (or the server is down): check before showing an empty page.
@@ -374,6 +396,7 @@
 
     const now = Date.now();
     const igConnected = !!shell?.account;
+    const igUsed = on('dm') || on('scheduler');
     const igSched = (igPosts || []).filter((p) => p.status === 'scheduled' || p.status === 'publishing');
     const igFailed = (igPosts || []).filter((p) => p.status === 'failed');
     const igPublished = (igPosts || []).filter((p) => p.status === 'published' && p.published_at > now - 30 * 864e5);
@@ -388,41 +411,42 @@
 
     const apps = [
       {
-        name: 'Instagram DM Automation', cls: 'dm', icon: 'chat', href: '/dm/',
+        id: 'dm', name: 'Instagram DM Automation', cls: 'dm', icon: 'chat', href: '/dm/',
         desc: 'Auto-replies, comment-to-DM, flows and your inbox.',
         state: !igConnected ? ['warn', 'Not connected'] : shell.automationEnabled ? ['ok', 'Active'] : ['warn', 'Paused'],
         stats: [[ov?.received?.value, 'DMs (7 days)'], [shell?.badge, 'Awaiting reply'], [ov ? rulesOn : null, 'Rules on']],
         note: acct || 'Connect your Instagram account to start',
       },
       {
-        name: 'Instagram Scheduler', cls: 'sched', icon: 'calendar', href: '/scheduler/',
+        id: 'scheduler', name: 'Instagram Scheduler', cls: 'sched', icon: 'calendar', href: '/scheduler/',
         desc: 'Plan photos, carousels, reels and stories on a calendar.',
         state: !igConnected ? ['warn', 'Not connected'] : igFailed.length ? ['bad', `${igFailed.length} failed`] : ['ok', 'Ready'],
         stats: [[igPosts ? igSched.length : null, 'Scheduled'], [igPosts ? igPublished.length : null, 'Published'], [igPosts ? igFailed.length : null, 'Failed']],
         note: nextIg ? `Next: ${relDay(nextIg.scheduled_at)}` : 'Nothing scheduled yet',
       },
       {
-        name: 'LinkedIn Scheduler', cls: 'li', icon: 'linkedin', href: '/linkedin/',
+        id: 'linkedin', name: 'LinkedIn Scheduler', cls: 'li', icon: 'linkedin', href: '/linkedin/',
         desc: 'Text, image, video and poll posts for profiles and pages.',
         state: liStatus && !liStatus.linkedinReady ? ['warn', 'Needs setup'] : liAcc && !liLive.length ? ['warn', 'No account'] : liFailed.length ? ['bad', `${liFailed.length} failed`] : liPosts ? ['ok', 'Ready'] : ['', 'Unavailable'],
         stats: [[liPosts ? liSched.length : null, 'Scheduled'], [liPosts ? liDrafts.length : null, 'Drafts'], [liAcc ? liLive.length : null, 'Accounts']],
         note: nextLi ? `Next: ${relDay(nextLi.when_at)}` : 'Nothing scheduled yet',
       },
       {
-        name: 'WhatsApp Automation', cls: 'wa', icon: 'whatsapp', href: '/whatsapp/',
+        id: 'whatsapp', name: 'WhatsApp Automation', cls: 'wa', icon: 'whatsapp', href: '/whatsapp/',
         desc: 'Auto-replies, template broadcasts, inbox and n8n.',
         state: !wa ? ['', 'Unavailable'] : !wa.configured ? ['warn', 'Not connected'] : wa.failed24h ? ['bad', `${wa.failed24h} failed`] : wa.automation ? ['ok', 'Active'] : ['warn', 'Paused'],
         stats: [[wa?.received7d, 'Messages (7 days)'], [wa?.awaiting, 'Awaiting reply'], [wa?.rulesOn, 'Rules on']],
         note: wa?.display?.phone || (wa?.nextBroadcast ? `Broadcast: ${relDay(wa.nextBroadcast.scheduled_at)}` : 'Connect your WhatsApp number to start'),
       },
     ];
-    $('#apps').innerHTML = apps.map(card).join('');
+    // Apps in the plan first, locked upgrades after them.
+    $('#apps').innerHTML = [...apps.filter((a) => on(a.id)).map(card), ...apps.filter((a) => !on(a.id)).map(lockedCard)].join('');
 
     // Needs attention: the same things each app warns about, gathered in one place.
     const att = [];
-    if (shell && !igConnected) att.push(['warn', 'Instagram account not connected', 'DM automation and the Instagram scheduler need it.', '/dm/#overview']);
-    if (igConnected && !shell.automationEnabled) att.push(['warn', 'Instagram automations are paused', 'Nobody gets automatic replies until you resume.', '/dm/#settings']);
-    if (shell?.alerts) att.push(['bad', `${shell.alerts} Instagram problem${shell.alerts === 1 ? '' : 's'} in the last 24 hours`, 'Failed replies or comment checks.', '/dm/#activity']);
+    if (igUsed && shell && !igConnected) att.push(['warn', 'Instagram account not connected', 'DM automation and the Instagram scheduler need it.', '/dm/#overview']);
+    if (on('dm') && igConnected && !shell.automationEnabled) att.push(['warn', 'Instagram automations are paused', 'Nobody gets automatic replies until you resume.', '/dm/#settings']);
+    if (on('dm') && shell?.alerts) att.push(['bad', `${shell.alerts} Instagram problem${shell.alerts === 1 ? '' : 's'} in the last 24 hours`, 'Failed replies or comment checks.', '/dm/#activity']);
     if (igFailed.length) att.push(['bad', `${igFailed.length} Instagram post${igFailed.length === 1 ? '' : 's'} failed to publish`, clip(igFailed[0].error, 80), '/scheduler/#posts']);
     if (liStatus && !liStatus.linkedinReady) att.push(['warn', 'LinkedIn app not set up', 'Add your Client ID and Secret in LinkedIn settings.', '/linkedin/settings.html']);
     else if (liAcc && !liAcc.length) att.push(['warn', 'No LinkedIn account connected', 'Connect a profile to start publishing.', '/linkedin/accounts.html']);
@@ -451,10 +475,21 @@
     if (!s?.loggedIn) return showLogin();
     // Sent here to sign in from another page (e.g. the LinkedIn login): go back once signed in. Same-site paths only.
     const next = new URLSearchParams(location.search).get('next');
-    if (next && /^\/(dm|scheduler|linkedin|whatsapp)\/[\w./?=&#-]*$/.test(next)) return location.replace(next);
+    if (next && /^\/(dm|scheduler|linkedin|whatsapp|locked|clients)[\w./?=&#-]*$/.test(next)) return location.replace(next);
+    appsInfo = (await safe(get('/api/apps'))) || appsInfo;
+    $('#clients-link').hidden = !appsInfo.clients;
     $('#login').hidden = true;
     $('#hub').hidden = false;
-    await Promise.all([render(), loadCalendar(), renderStudio()]);
+    // The calendar shows only the schedulers this workspace has; it is loaded once that is known.
+    const plats = [on('scheduler') && 'instagram', on('linkedin') && 'linkedin'].filter(Boolean);
+    $('#cal-home').hidden = !plats.length;
+    if (plats.length === 1) $('#cal-sub').textContent = plats[0] === 'instagram' ? 'Your Instagram posts' : 'Your LinkedIn posts';
+    $('#studio').hidden = !on('linkedin');
+    if (plats.length && !calViews.posts) {
+      window.CALHOST.calendar.platforms = plats;
+      await new Promise((res) => { const s = document.createElement('script'); s.src = '/calendar.js'; s.onload = s.onerror = res; document.body.appendChild(s); });
+    }
+    await Promise.all([render(), loadCalendar(), on('linkedin') ? renderStudio() : null]);
   }
   setInterval(() => { if (!$('#hub').hidden && document.visibilityState === 'visible') render(); }, 60000);
   start();
