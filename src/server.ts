@@ -5,6 +5,7 @@ import { assertConfig, config } from './config.js';
 import { api } from './api.js';
 import { checkToken, endSession, isLoggedIn, login, logout, makeToken, requireLogin } from './auth.js';
 import { createLinkedInApp } from './linkedin/server.js';
+import { createWhatsAppApp } from './whatsapp/routes.js';
 import { db, log, redact } from './db.js';
 import { authorizeUrl, exchangeCode, sealStoredToken, startWebhookWatch } from './instagram.js';
 import { startFlowTimer } from './flows.js';
@@ -30,7 +31,7 @@ const CSP = [
 // The LinkedIn pages keep their scripts inline, so that section gets the same policy with inline scripts allowed.
 const CSP_LINKEDIN = CSP.replace("script-src 'self'", "script-src 'self' 'unsafe-inline'");
 const httpsSite = config.baseUrl.startsWith('https://');
-const isApiPath = (p: string) => /^\/(linkedin\/)?(api|auth)(\/|$)/.test(p);
+const isApiPath = (p: string) => /^\/(linkedin\/|whatsapp\/)?(api|auth)(\/|$)/.test(p);
 
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -89,6 +90,11 @@ const linkedin = createLinkedInApp({ isOwner: isLoggedIn, endOwnerSession: endSe
 app.use('/linkedin/api', sameOrigin);
 app.use('/linkedin', linkedin.app);
 
+// WhatsApp automation (official Cloud API). Mounted before the JSON parser: its webhook verifies the raw body.
+const whatsapp = createWhatsAppApp({ isLoggedIn });
+app.use('/whatsapp/api', sameOrigin);
+app.use('/whatsapp', whatsapp.app);
+
 app.use(express.json({ limit: '1mb' }));
 
 app.post('/api/login', login);
@@ -146,6 +152,7 @@ const server = app.listen(config.port, () => {
   startWebhookWatch();
   startSnapshots();
   linkedin.start();
+  whatsapp.start();
 });
 
 // A stray rejection should be logged, not take the whole worker down mid-send.
@@ -158,7 +165,7 @@ async function shutdown(signal: string): Promise<void> {
   shuttingDown = true;
   console.log(`${signal} received, shutting down`);
   server.close();
-  await Promise.all([stopQueue(), linkedin.stop()]);
+  await Promise.all([stopQueue(), linkedin.stop(), whatsapp.stop()]);
   try {
     db.close();
   } catch {

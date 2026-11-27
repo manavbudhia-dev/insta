@@ -11,6 +11,7 @@
   const P = {
     chat: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
     calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+    whatsapp: '<path d="M3 21l1.7-4.6A8.5 8.5 0 1 1 8 19.6z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1.2-1.4-2-1-1 .8a4 4 0 0 1-2.1-2.1l.8-1-1-2z"/>',
     linkedin: '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 10v7M8 7v.01M12 17v-4a2 2 0 0 1 4 0v4M12 10v7"/>',
     arrow: '<path d="M5 12h14m-7-7 7 7-7 7"/>',
     refresh: '<path d="M21 12a9 9 0 0 1-15.5 6.2L3 16m0 5v-5h5M3 12a9 9 0 0 1 15.5-6.2L21 8m0-5v5h-5"/>',
@@ -360,9 +361,10 @@
     const hr = new Date().getHours();
     $('#hello').textContent = `${hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening'} 👋`;
     const tz = -new Date().getTimezoneOffset();
-    const [shell, ov, igPosts, liPosts, liAcc, liStatus] = await Promise.all([
+    const [shell, ov, igPosts, liPosts, liAcc, liStatus, wa] = await Promise.all([
       safe(get('/api/shell')), safe(get(`/api/overview?days=7&tz=${tz}`)), safe(get('/api/posts')),
       safe(get('/linkedin/api/posts')), safe(get('/linkedin/api/accounts')), safe(get('/linkedin/api/status')),
+      safe(get('/whatsapp/api/status')),
     ]);
     if (shell === null && ov === null && igPosts === null) {
       // The session ended (or the server is down): check before showing an empty page.
@@ -406,6 +408,13 @@
         stats: [[liPosts ? liSched.length : null, 'Scheduled'], [liPosts ? liDrafts.length : null, 'Drafts'], [liAcc ? liLive.length : null, 'Accounts']],
         note: nextLi ? `Next: ${relDay(nextLi.when_at)}` : 'Nothing scheduled yet',
       },
+      {
+        name: 'WhatsApp Automation', cls: 'wa', icon: 'whatsapp', href: '/whatsapp/',
+        desc: 'Auto-replies, template broadcasts, inbox and n8n.',
+        state: !wa ? ['', 'Unavailable'] : !wa.configured ? ['warn', 'Not connected'] : wa.failed24h ? ['bad', `${wa.failed24h} failed`] : wa.automation ? ['ok', 'Active'] : ['warn', 'Paused'],
+        stats: [[wa?.received7d, 'Messages (7 days)'], [wa?.awaiting, 'Awaiting reply'], [wa?.rulesOn, 'Rules on']],
+        note: wa?.display?.phone || (wa?.nextBroadcast ? `Broadcast: ${relDay(wa.nextBroadcast.scheduled_at)}` : 'Connect your WhatsApp number to start'),
+      },
     ];
     $('#apps').innerHTML = apps.map(card).join('');
 
@@ -419,6 +428,9 @@
     else if (liAcc && !liAcc.length) att.push(['warn', 'No LinkedIn account connected', 'Connect a profile to start publishing.', '/linkedin/accounts.html']);
     for (const t of liStatus?.tokens || []) att.push([t.expired ? 'bad' : 'warn', t.expired ? `LinkedIn connection for ${t.name} expired` : `LinkedIn connection for ${t.name} expires in ${t.days_left} day${t.days_left === 1 ? '' : 's'}`, 'Reconnect it so scheduled posts keep publishing.', '/linkedin/accounts.html']);
     if (liFailed.length) att.push(['bad', `${liFailed.length} LinkedIn post${liFailed.length === 1 ? '' : 's'} failed`, clip(liFailed[0].error, 80), '/linkedin/queue.html']);
+    if (wa && !wa.configured) att.push(['warn', 'WhatsApp not connected', 'Add your Cloud API number and token in WhatsApp settings.', '/whatsapp/#settings']);
+    if (wa?.failed24h) att.push(['bad', `${wa.failed24h} WhatsApp message${wa.failed24h === 1 ? '' : 's'} failed in the last 24 hours`, 'See what went wrong in Activity.', '/whatsapp/#activity']);
+    if (wa?.awaiting) att.push(['warn', `${wa.awaiting} WhatsApp chat${wa.awaiting === 1 ? '' : 's'} awaiting a reply`, 'Reply within 24 hours, after that only templates are allowed.', '/whatsapp/#inbox']);
     if (liDrafts.some((p) => p.ai)) att.push(['warn', 'AI drafts are waiting for your approval', 'Review them in Auto content.', '/linkedin/auto.html']);
     $('#attention').innerHTML = att.length
       ? att.map(([lvl, t, d, href]) => `<a class="row" href="${href}"><span class="dot ${lvl}">${ic('alert')}</span><span class="txt"><b>${esc(t)}</b><span>${esc(d || '')}</span></span>${ic('arrow')}</a>`).join('')
@@ -439,7 +451,7 @@
     if (!s?.loggedIn) return showLogin();
     // Sent here to sign in from another page (e.g. the LinkedIn login): go back once signed in. Same-site paths only.
     const next = new URLSearchParams(location.search).get('next');
-    if (next && /^\/(dm|scheduler|linkedin)\/[\w./?=&#-]*$/.test(next)) return location.replace(next);
+    if (next && /^\/(dm|scheduler|linkedin|whatsapp)\/[\w./?=&#-]*$/.test(next)) return location.replace(next);
     $('#login').hidden = true;
     $('#hub').hidden = false;
     await Promise.all([render(), loadCalendar(), renderStudio()]);

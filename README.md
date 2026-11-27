@@ -7,6 +7,9 @@ One self-hosted platform, one login, one deploy:
 - **LinkedIn** (`/linkedin/`): schedule text, image, video and poll posts to LinkedIn profiles and company pages through
   LinkedIn's official Posts API, with a queue, analytics, team members and optional AI-written drafts.
   See [LinkedIn scheduler](#linkedin-scheduler).
+- **WhatsApp** (`/whatsapp/`): auto-replies with quick-reply buttons, a shared inbox, template broadcasts with delivery
+  stats, STOP/START opt-out, and n8n in both directions, through Meta's official WhatsApp Cloud API.
+  See [WhatsApp automation](#whatsapp-automation).
 
 Sign in once with `ADMIN_PASSWORD` on the **home page** (`/`). It shows one card per mini app with live numbers, the
 content calendar for Instagram and LinkedIn, a "Needs attention" list and the next scheduled posts on all platforms:
@@ -16,6 +19,7 @@ content calendar for Instagram and LinkedIn, a "Needs attention" list and the ne
 | Instagram DM Automation | `/dm/` | Overview, automations, flows, inbox, insights, activity, settings |
 | Instagram Scheduler | `/scheduler/` | Instagram content calendar and insights |
 | LinkedIn Scheduler | `/linkedin/` | Schedule, queue, analytics, accounts, auto content, settings |
+| WhatsApp Automation | `/whatsapp/` | Overview, inbox, auto-replies, broadcasts, templates, activity, settings |
 
 Every mini app has **All apps** to go back home. Old links such as `/#inbox` still work and open the right mini app.
 
@@ -316,6 +320,60 @@ Every 30 seconds due posts are published with `POST /rest/posts`. Each post is c
 up to 3 times, and a post interrupted by a restart is marked failed instead of retried so it can never go out twice.
 LinkedIn tokens last about 60 days and cannot be renewed silently; a banner (and optionally a Slack/Discord message)
 warns before a connection expires.
+
+## WhatsApp automation
+
+`/whatsapp/` uses the **WhatsApp Business Cloud API** (hosted by Meta, official), so the number is never at risk of a ban
+for automation the way unofficial WhatsApp Web bots are. Everything is configured in the dashboard; nothing goes in `.env`.
+
+### 1. Set up WhatsApp in Meta
+
+1. In your Meta app (the Instagram one is fine, or a separate app) add the **WhatsApp** product and add / verify a phone
+   number. A number used here can't be logged in to the normal WhatsApp app at the same time.
+2. Business Settings > **System users**: create one, assign it the app and the WhatsApp Business Account with full
+   control, and **Generate token** with `whatsapp_business_messaging` and `whatsapp_business_management`
+   (expiry: never).
+3. Open **WhatsApp > Settings** in the dashboard and paste the **phone number ID**, **WhatsApp Business Account ID**
+   (both on the app's WhatsApp > API Setup page) and the token. **Test connection** shows the number and its quality.
+   If WhatsApp lives in a different Meta app than Instagram, also paste that app's secret.
+4. Meta app > WhatsApp > **Configuration** > Webhook: paste the **Callback URL** (`https://<domain>/whatsapp/webhook`)
+   and **Verify token** from Settings, click Verify and save, and subscribe to the **messages** field. Then click
+   **Subscribe app to WABA** in Settings.
+
+### What it does
+
+- **Auto-replies**: a welcome message for someone's first message, and keyword rules (contains / exact / any) with up
+  to 3 quick-reply buttons, `{{first_name}}` / `{{name}}` / `{{phone}}`, priority and per-person cooldown. One reply per
+  incoming message, a per-contact hourly cap so two bots can't loop, and replying by hand from the inbox pauses the bot
+  for that chat (configurable).
+- **Opt-out**: `STOP` / `UNSUBSCRIBE` marks the contact opted out (with a confirmation you can edit) and broadcasts skip
+  them; `START` subscribes them again.
+- **Inbox**: every chat with delivery ticks (sent / delivered / read / failed), manual replies, and templates when the
+  24-hour window is closed.
+- **Broadcasts**: pick an approved template, paste numbers (`number, var1, var2` per line, CSV header optional),
+  send now or schedule. Duplicate and invalid lines are dropped; a default country code (Settings) is added to 10-digit
+  numbers. Templates with media headers or variable buttons are not supported yet.
+- **Templates**: synced from WhatsApp Manager (create and edit them there; Meta reviews them).
+
+WhatsApp's rules are enforced: free-form messages only within 24 hours of the person's last message (otherwise only an
+approved template), an hourly send cap you can raise to match your messaging tier, retries for rate limits, and a send
+interrupted by a restart is marked failed instead of resent.
+
+### n8n
+
+- **Events to n8n**: set an n8n Webhook URL in WhatsApp settings. `whatsapp.message.received`, `whatsapp.reply.sent`,
+  `whatsapp.reply.failed` and `whatsapp.opt_out` are POSTed with the same signature as the Instagram webhook
+  (`X-Autopilot-Signature: sha256=<HMAC of the raw body>` with the signing secret shown there).
+- **Send from n8n**: create an API key in WhatsApp settings, then an HTTP Request node:
+
+  ```
+  POST https://<domain>/whatsapp/api/external/send
+  Authorization: Bearer wak_...
+  {"to": "919876543210", "text": "Hi"}                                   # within 24h of their last message
+  {"to": "919876543210", "template": "order_update", "language": "en_US", "params": ["Asha", "#1042"]}
+  ```
+
+  It answers `202 {"queued": true, "id": 12}`; `GET /whatsapp/api/external/status/12` (same header) gives the result.
 
 ## Day-to-day
 
