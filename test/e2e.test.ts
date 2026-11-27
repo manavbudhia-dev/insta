@@ -419,3 +419,71 @@ test('a block reported by Instagram (368) switches automation off', async () => 
   const logs = (await call('GET', '/api/logs')).json as { message: string }[];
   assert.ok(logs.some((l) => /temporarily blocked/i.test(l.message)));
 });
+
+test('n8n webhook: signed events for DMs, comments and replies; settings and test event', async () => {
+  const got: { headers: http.IncomingHttpHeaders; raw: string; body: any }[] = [];
+  let answer = 200;
+  const hook = http.createServer((req, res) => {
+    let raw = '';
+    req.on('data', (c) => (raw += c));
+    req.on('end', () => {
+      got.push({ headers: req.headers, raw, body: JSON.parse(raw) });
+      res.writeHead(answer).end('{}');
+    });
+  });
+  await new Promise<void>((r) => hook.listen(34803, r));
+  try {
+    await call('PUT', '/api/settings', { automation_enabled: 1, contact_hourly_limit: 10 });
+    assert.equal((await call('PUT', '/api/integrations/webhook', { url: 'ftp://nope' })).status, 400);
+    const saved = await call('PUT', '/api/integrations/webhook', { url: 'http://127.0.0.1:34803/hook' });
+    assert.equal(saved.status, 200);
+    const secret = saved.json.secret;
+    assert.match(secret, /^whsec_/);
+    assert.deepEqual(saved.json.events, ['message.received', 'comment.received', 'reply.sent', 'reply.failed']);
+
+    const t = await call('POST', '/api/integrations/webhook/test');
+    assert.equal(t.status, 200);
+    assert.equal(got.at(-1)!.body.event, 'test');
+
+    // A DM that matches the "Price" rule: one message.received, then reply.sent once the queue sends it.
+    await webhook(dm('price please', 'mid.hook1', {}, 'USER9'));
+    const inMsg = await until(() => got.find((g) => g.body.event === 'message.received'), 'message.received');
+    assert.equal(inMsg.headers['x-autopilot-signature'], 'sha256=' + crypto.createHmac('sha256', secret).update(inMsg.raw).digest('hex'));
+    assert.equal(inMsg.headers['x-autopilot-event'], 'message.received');
+    assert.equal(inMsg.body.account.username, 'myshop');
+    assert.equal(inMsg.body.data.text, 'price please');
+    assert.equal(inMsg.body.data.contact.igsid, 'USER9');
+    assert.equal(inMsg.body.data.first_message, true);
+    const sent = await until(() => got.find((g) => g.body.event === 'reply.sent'), 'reply.sent');
+    assert.equal(sent.body.data.kind, 'dm');
+    assert.equal(sent.body.data.rule.name, 'Price');
+    assert.equal(sent.body.data.contact.igsid, 'USER9');
+
+    // Comments, and only the events that are switched on.
+    await call('PUT', '/api/integrations/webhook', { url: 'http://127.0.0.1:34803/hook', events: ['comment.received'] });
+    const n = got.length;
+    await webhook({ object: 'instagram', entry: [{ id: OWN_ID, changes: [{ field: 'comments', value: { comment_id: 'CH1', text: 'link pls', from: { id: 'CU9', username: 'nisha' }, media: { id: 'MEDIA1' } } }] }] });
+    const c = await until(() => got.slice(n).find((g) => g.body.event === 'comment.received'), 'comment.received');
+    assert.equal(c.body.data.contact.username, 'nisha');
+    assert.equal(c.body.data.media_id, 'MEDIA1');
+    await new Promise((r) => setTimeout(r, 600));
+    assert.deepEqual(got.slice(n).map((g) => g.body.event), ['comment.received'], 'reply.sent is switched off');
+
+    // n8n refusing the call is recorded for the dashboard, and the secret never reaches the logs.
+    answer = 404;
+    assert.equal((await call('POST', '/api/integrations/webhook/test')).status, 400);
+    assert.equal((await call('GET', '/api/integrations/webhook')).json.last.ok, false);
+    const rotated = (await call('POST', '/api/integrations/webhook/secret')).json.secret;
+    assert.notEqual(rotated, secret);
+    const logs = JSON.stringify((await call('GET', '/api/logs')).json);
+    assert.ok(!logs.includes(secret) && !logs.includes(rotated));
+
+    await call('PUT', '/api/integrations/webhook', { url: '' });
+    const m = got.length;
+    await webhook(dm('price', 'mid.hook2', {}, 'USER10'));
+    await new Promise((r) => setTimeout(r, 600));
+    assert.equal(got.length, m, 'an empty URL turns the webhook off');
+  } finally {
+    hook.close();
+  }
+});

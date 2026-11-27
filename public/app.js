@@ -264,7 +264,7 @@
     posts: { icon: 'calendar', title: () => 'Content calendar', sub: 'Plan photos, carousels, reels and stories by month. Times are in your local timezone.' },
     insights: { icon: 'chart', title: () => 'Insights', sub: 'How your conversations, automations and posts are performing.' },
     activity: { icon: 'activity', title: () => 'Activity', sub: 'Every reply the system queued, and what happened to it.' },
-    settings: { icon: 'settings', title: () => 'Settings', sub: 'Safety limits and how comments are collected.' },
+    settings: { icon: 'settings', title: () => 'Settings', sub: 'Safety limits, how comments are collected, and sending events to n8n.' },
   };
   let currentView = 'overview';
   const hour = () => new Date().getHours();
@@ -1330,7 +1330,7 @@
 
   views.settings = async () => {
     const g = gen;
-    const s = await api('/settings');
+    const [s, wh] = await Promise.all([api('/settings'), api('/integrations/webhook')]);
     if (g !== gen) return;
     main.innerHTML = `
       <form class="card form" id="settings-form" style="max-width:660px">
@@ -1345,7 +1345,38 @@
           <label>Recent posts to watch<input type="number" name="poll_media_count" min="1" max="50" value="${s.poll_media_count}"></label>
         </div>
         <div class="row"><button class="btn primary">Save settings</button></div>
+      </form>
+      <form class="card form" id="hook-form" style="max-width:660px;margin-top:20px">
+        <h3 style="margin:0">Send events to n8n</h3>
+        <p class="hint">Every new DM, comment and automated reply is POSTed as JSON to this URL, so n8n can save leads to Google Sheets, a CRM or WhatsApp. Use the <b>Production URL</b> of a Webhook node (method POST) and keep the n8n workflow active. Leave the URL empty to turn this off.</p>
+        <label>Webhook URL<input type="url" name="url" placeholder="https://n8n.example.com/webhook/instagram" value="${esc(wh.url)}"></label>
+        <fieldset class="checks" style="border:0;padding:0;margin:0">
+          ${wh.available.map((e) => `<label class="check"><input type="checkbox" name="ev" value="${esc(e)}" ${wh.events.includes(e) ? 'checked' : ''}> <code>${esc(e)}</code> <span class="hint">${esc({ 'message.received': 'someone sent a DM, story reply or mention', 'comment.received': 'someone commented on a post', 'reply.sent': 'an automated or manual reply went out', 'reply.failed': 'a reply could not be sent' }[e] || '')}</span></label>`).join('')}
+        </fieldset>
+        ${wh.secret ? `<label>Signing secret <span class="hint">Each call carries <code>X-Autopilot-Signature: sha256=HMAC(secret, body)</code>. Optional to check in n8n; keep it private.</span>
+          <div class="row" style="gap:8px"><input type="password" id="hook-secret" readonly value="${esc(wh.secret)}" style="flex:1"><button type="button" class="btn" id="hook-show">Show</button><button type="button" class="btn" id="hook-rotate">New secret</button></div></label>` : ''}
+        ${wh.last ? `<p class="hint">Last delivery: <code>${esc(wh.last.event)}</code> ${ago(wh.last.at)}, ${wh.last.ok ? `<span style="color:var(--ok,#22c55e)">delivered (HTTP ${esc(wh.last.status)})</span>` : `<span style="color:var(--bad,#ef4444)">failed: ${esc(wh.last.error)}</span>`}</p>` : ''}
+        <div class="row" style="gap:8px"><button class="btn primary">Save webhook</button>${wh.url ? '<button type="button" class="btn" id="hook-test">Send test event</button>' : ''}</div>
       </form>`;
+    $('#hook-form').onsubmit = run(async (e) => {
+      e.preventDefault();
+      const f = e.target;
+      await api('/integrations/webhook', { method: 'PUT', body: { url: f.url.value.trim(), events: [...f.querySelectorAll('input[name=ev]:checked')].map((i) => i.value) } });
+      route();
+    }, 'Webhook saved');
+    const show = $('#hook-show');
+    if (show) show.onclick = () => { const i = $('#hook-secret'); i.type = i.type === 'password' ? 'text' : 'password'; show.textContent = i.type === 'password' ? 'Show' : 'Hide'; };
+    const rotate = $('#hook-rotate');
+    if (rotate) rotate.onclick = run(async () => {
+      if (!confirm('Make a new signing secret? n8n checks that use the old one will fail until you update them.')) return;
+      await api('/integrations/webhook/secret', { method: 'POST' });
+      route();
+    }, 'New secret created');
+    const test = $('#hook-test');
+    if (test) test.onclick = run(async () => {
+      await api('/integrations/webhook/test', { method: 'POST' });
+      route();
+    }, 'Test event delivered to n8n');
     $('#settings-form').onsubmit = run(async (e) => {
       e.preventDefault();
       const f = e.target;
