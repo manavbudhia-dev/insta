@@ -23,6 +23,15 @@ export const config = {
   /** Worker tick intervals (ms); lowered in tests. */
   queueTickMs: Number(env('QUEUE_TICK_MS', '2000')),
   sendGapMs: Number(env('SEND_GAP_MS', '1500')),
+  /**
+   * Multi-client setup. A client instance's Meta webhooks arrive at the main instance, so the callback URL the
+   * Meta dashboard should show is the main one, not this instance's own /webhook.
+   */
+  webhookCallbackUrl: env('WEBHOOK_CALLBACK_URL') || `${env('BASE_URL', 'http://localhost:3000').replace(/\/+$/, '')}/webhook`,
+  /** Instagram usernames or IDs this instance may use (comma-separated). Empty = any account the token can see. */
+  igAccountLock: env('IG_ACCOUNT_LOCK').split(',').map((s) => s.trim().replace(/^@/, '').toLowerCase()).filter(Boolean),
+  /** JSON file listing client instances (["http://client-a:3000", …]) that verified webhooks are passed on to. */
+  forwardWebhooksFile: env('FORWARD_WEBHOOKS_FILE'),
   /** Upper bound for uploaded post media on disk. */
   maxMediaBytes: Number(env('MAX_MEDIA_MB', '5120')) * 1024 * 1024,
 };
