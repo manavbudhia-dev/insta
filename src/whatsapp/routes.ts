@@ -10,6 +10,8 @@ import { appEnabled } from '../apps.js';
 import { config } from '../config.js';
 import { db, delSetting, getSetting, log, redact, setSetting } from '../db.js';
 import { forward } from '../webhook.js';
+import { config } from '../config.js';
+import { db, delSetting, getSetting, log, redact, setSetting } from '../db.js';
 import { build, cloud, WaError } from './cloud.js';
 import { handleChange, parseRule } from './engine.js';
 import { deliverTest, hookConfig, newHookSecret, saveHookUrl } from './hook.js';
@@ -161,12 +163,17 @@ export function createWhatsAppApp(opts: { isLoggedIn: (req: Request) => boolean 
     // No number connected here, or the app is switched off: these events are not ours to store.
     if (!mine || !appEnabled('whatsapp')) return;
     setSetting('wa_last_webhook_at', Date.now());
+    setSetting('wa_last_webhook_at', Date.now());
+    const body = req.body;
+    if (body?.object !== 'whatsapp_business_account' || !Array.isArray(body.entry)) return;
+    const mine = phoneId();
     for (const entry of body.entry) {
       for (const change of entry.changes ?? []) {
         if (change.field !== 'messages' || !change.value) continue;
         // One WhatsApp Business Account can hold several numbers; only act for the connected one.
         const pid = String(change.value.metadata?.phone_number_id ?? '');
         if (pid !== mine) continue;
+        if (mine && pid && pid !== mine) continue;
         handleChange(change.value);
       }
     }

@@ -9,6 +9,7 @@ import { checkToken, endSession, isLoggedIn, login, logout, makeToken, requireLo
 import { createLinkedInApp } from './linkedin/server.js';
 import { createWhatsAppApp } from './whatsapp/routes.js';
 import { db, getSetting, log, redact } from './db.js';
+import { db, log, redact } from './db.js';
 import { authorizeUrl, exchangeCode, sealStoredToken, startWebhookWatch } from './instagram.js';
 import { startFlowTimer } from './flows.js';
 import { startSnapshots } from './insights.js';

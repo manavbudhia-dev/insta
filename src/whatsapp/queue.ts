@@ -146,6 +146,7 @@ let stopping = false;
 
 async function drain(): Promise<void> {
   while (!stopping && configured() && appEnabled('whatsapp')) {
+  while (!stopping && configured()) {
     if (sentLastHour() >= waOpt('wa_hourly_limit')) {
       if (firstTime(`wa-hourly:${Math.floor(Date.now() / 3600_000)}`)) waLog('warn', 'Hourly send limit reached; the rest waits in the queue. Raise it in WhatsApp settings if your tier allows.');
       return;

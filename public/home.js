@@ -387,6 +387,10 @@
       when('dm', `/api/overview?days=7&tz=${tz}`), when('scheduler', '/api/posts'),
       when('linkedin', '/linkedin/api/posts'), when('linkedin', '/linkedin/api/accounts'), when('linkedin', '/linkedin/api/status'),
       when('whatsapp', '/whatsapp/api/status'),
+    const [shell, ov, igPosts, liPosts, liAcc, liStatus, wa] = await Promise.all([
+      safe(get('/api/shell')), safe(get(`/api/overview?days=7&tz=${tz}`)), safe(get('/api/posts')),
+      safe(get('/linkedin/api/posts')), safe(get('/linkedin/api/accounts')), safe(get('/linkedin/api/status')),
+      safe(get('/whatsapp/api/status')),
     ]);
     if (shell === null && ov === null && igPosts === null) {
       // The session ended (or the server is down): check before showing an empty page.
@@ -433,6 +437,7 @@
       },
       {
         id: 'whatsapp', name: 'WhatsApp Automation', cls: 'wa', icon: 'whatsapp', href: '/whatsapp/',
+        name: 'WhatsApp Automation', cls: 'wa', icon: 'whatsapp', href: '/whatsapp/',
         desc: 'Auto-replies, template broadcasts, inbox and n8n.',
         state: !wa ? ['', 'Unavailable'] : !wa.configured ? ['warn', 'Not connected'] : wa.failed24h ? ['bad', `${wa.failed24h} failed`] : wa.automation ? ['ok', 'Active'] : ['warn', 'Paused'],
         stats: [[wa?.received7d, 'Messages (7 days)'], [wa?.awaiting, 'Awaiting reply'], [wa?.rulesOn, 'Rules on']],
@@ -478,6 +483,7 @@
     if (next && /^\/(dm|scheduler|linkedin|whatsapp|locked|clients)[\w./?=&#-]*$/.test(next)) return location.replace(next);
     appsInfo = (await safe(get('/api/apps'))) || appsInfo;
     $('#clients-link').hidden = !appsInfo.clients;
+    if (next && /^\/(dm|scheduler|linkedin|whatsapp)\/[\w./?=&#-]*$/.test(next)) return location.replace(next);
     $('#login').hidden = true;
     $('#hub').hidden = false;
     // The calendar shows only the schedulers this workspace has; it is loaded once that is known.
